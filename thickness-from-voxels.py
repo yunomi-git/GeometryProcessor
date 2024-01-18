@@ -2,9 +2,10 @@ import trimesh
 import numpy as np
 import time
 from stopwatch import Stopwatch
+import trimesh_util
 import paths
  # https://towardsdatascience.com/how-to-voxelize-meshes-and-point-clouds-in-python-ca94d403f81d
-
+stopwatch = Stopwatch()
 directions = ['x', 'y', 'z']
 inv_directions = {
     'x': 0,
@@ -25,22 +26,7 @@ wall_indices_map = {
     "-z": (0, 2),
 }
 
-def voxelize(mesh):
-    bounds = mesh.bounds
-    size = bounds[1, :] - bounds[0, :]
 
-    nominal_mesh_size = 1.0
-    nominal_voxel_size = 0.002
-    min_scale = max(size / nominal_mesh_size)
-    desired_voxel_size = min_scale * nominal_voxel_size
-
-    start = time.time()
-    angel_voxel = mesh.voxelized(pitch=desired_voxel_size, method="ray") # ray, subdivide, binvox
-    print(time.time() - start)
-    print("---")
-
-    return angel_voxel
-    # return angel_voxel.as_boxes()
 
 def get_closest_intersecting_bound(mesh, facet_i):
     # centroid = mesh.facet_origin[facet_i, :]
@@ -66,8 +52,16 @@ def search_for_surface_point(voxel, start_point, end_point):
     filled_bound = 0.0
     unfilled_bound = 1.0
     for i in range(8):
-        test_point = (filled_bound + unfilled_bound) / 2.0
-        if voxel.is_filled(interpolate_3d(start_point, end_point, ratio=test_point)):
+        test_ratio = (filled_bound + unfilled_bound) / 2.0
+
+        stopwatch.start()
+        test_point = interpolate_3d(start_point, end_point, ratio=test_ratio)
+        # point_is_filled = voxel.is_filled(test_point)
+        point_is_filled = trimesh_util.check_voxel_is_filled(voxel, point=test_point)
+        print("voxel fill check", point_is_filled)
+        stopwatch.get_time()
+
+        if point_is_filled:
             filled_bound = test_point
         else:
             unfilled_bound = test_point
@@ -84,7 +78,7 @@ def find_boundary_intersection(origin, direction, wall, bounds):
     return intersect
 
 def get_thickness_from_voxels(mesh, voxel):
-    stopwatch = Stopwatch()
+
     num_faces = len(mesh.faces)
     face_thicknesses = np.empty(num_faces)
 
@@ -93,7 +87,7 @@ def get_thickness_from_voxels(mesh, voxel):
         origin = mesh.triangles_center[i, :]
         closest_bound = get_closest_intersecting_bound(mesh, i)
         # find intersection with closest bound
-        bound_intersection_point = find_boundary_intersection(origin, mesh.face_normals[i,:], closest_bound, mesh.bounds)
+        bound_intersection_point = find_boundary_intersection(origin, -mesh.face_normals[i,:], closest_bound, mesh.bounds)
 
         end_point = bound_intersection_point
         start_point = origin
@@ -109,10 +103,11 @@ def get_thickness_from_voxels(mesh, voxel):
     return face_thicknesses
 
 if __name__=="__main__":
-    mesh_path = 'stls/low-res.stl'
-    mesh = trimesh.load(mesh_path)
+    # mesh_path = 'stls/low-res.stl'
+    # mesh = trimesh.load(mesh_path)
+    mesh = trimesh_util.TRIMESH_TEST_MESH
     # mesh_path = paths.STL_PATH + "solid_1.stl"
-    voxels = voxelize(mesh)
+    voxels = trimesh_util.voxelize(mesh)
     facet_thicknesses = get_thickness_from_voxels(mesh, voxels)
 
     # Now with voxels, do ray tracing
