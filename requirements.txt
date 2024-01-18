@@ -1,0 +1,27 @@
+numpy==1.23.1
+numpy-stl # Default stl operation.
+vtkplotlib # Nice plotter
+
+matplotlib
+
+trimesh[all] # Nice plotter and manipulator. replaces numpy-stl and vtk
+
+scipy
+
+pc-skeletor # 3d skeleton 1
+    # "gcc not found": install build-essential
+    # mistree unrecognized ‘-mavx512fp16’:
+        # install mistree from source.
+        # Install fortran: gfortran
+        # run python setup.py build --cpu-dispatch="max -avx512_spr" bdist
+    # Requires numpy==1.23.1
+skeletor # 3d skeleton 2
+pyglet
+
+# clone matfp from source
+    # Install homebrew
+    # To use gmp correctly, sudo apt-get install libmpfr-dev libgmp-dev libboost-all-dev
+    # To use X11 correctly, install xorg-dev
+    # To use glut, install freeglut3-dev
+    # add #include <bitset> to Triangulation.cpp
+    # add #include <bitset> to LFS.cpp
