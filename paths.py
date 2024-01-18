@@ -7,6 +7,9 @@ from tkinter.filedialog import askopenfilename
 HOME_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
 STL_PATH = HOME_PATH + "/../STL_Onshape_Dataset/"
 
+def get_onshape_stl_path(i):
+    return STL_PATH + "solid_" + str(i) + ".stl"
+
 def select_file(init_dir=HOME_PATH, choose_file=True):
     Tk().withdraw()  # we don't want a full GUI, so keep the root window from appearing
     if choose_file:

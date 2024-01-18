@@ -1,7 +1,7 @@
 import trimesh
 import numpy as np
 from stopwatch import Stopwatch
-TRIMESH_TEST_MESH = trimesh.Trimesh(vertices=np.array([[0, 1, 0], [1, 0, 0], [0, 0, 0], [0, 0, 1]]),
+TRIMESH_TEST_MESH = trimesh.Trimesh(vertices=np.array([[0.0, 1, 0.0], [1, 0.0, 0.0], [0, 0, 0], [0.0, 0.01, 1]]),
                                     faces=np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]]))
 
 def voxelize(mesh):
@@ -14,8 +14,11 @@ def voxelize(mesh):
     desired_voxel_size = min_scale * nominal_voxel_size
 
     # start = time.time()
-    angel_voxel = mesh.voxelized(pitch=desired_voxel_size, method="ray") # ray, subdivide, binvox
-    # angel_voxel.fill()
+    angel_voxel = mesh.voxelized(pitch=desired_voxel_size, method="ray")  # ray, subdivide, binvox
+    angel_voxel.fill(method='base')
+    # base=fill_base,
+    # orthographic=fill_orthographic,
+    # holes=fill_holes,
     # print(time.time() - start)
     # print("---")
 
@@ -36,18 +39,19 @@ class VoxelAuxilliaryInfo:
     def check_voxel_is_filled(self, point):
         grid_index = np.floor((point - self.bound_lower) / self.grid_size).astype(int)
         return self.voxel.encoding.dense[grid_index[0], grid_index[1], grid_index[2]]
-def check_voxel_is_filled(voxel, point):
-    # First get which voxel index
-    bound_lower = voxel.bounds[0, :].copy()
-    bound_upper = voxel.bounds[1, :]
-    bound_length = bound_upper - bound_lower
-    num_grids = np.array(voxel.shape)
-    grid_size = np.divide(bound_length, num_grids)
-    bound_lower += grid_size / 2.0
-    grid_index = np.floor((point - bound_lower) / grid_size).astype(int)
-    # grid_index = (grid_index[0], grid_index[1], grid_index[2])
 
-    return voxel.matrix[grid_index[0], grid_index[1], grid_index[2]]
+class MeshAuxilliaryInfo:
+    def __init__(self, mesh):
+        self.mesh = mesh
+        self.bound_lower = mesh.bounds[0, :].copy()
+        self.bound_upper = mesh.bounds[1, :].copy()
+        self.bound_length = self.bound_upper - self.bound_lower
+
+        self.facet_centroids = mesh.triangles_center
+        self.facet_normals = mesh.face_normals
+        self.facet_areas = mesh.area_faces
+        self.num_facets = len(self.facet_centroids)
+
 
 def check_voxel_fill_equivalency():
     stopwatch = Stopwatch()
@@ -58,12 +62,10 @@ def check_voxel_fill_equivalency():
     voxels = voxelize(mesh)
     voxel_auxiliary = VoxelAuxilliaryInfo(voxels)
 
-    # voxel_box = voxels.as_boxes()
-
-    s = trimesh.Scene()
-    s.add_geometry(mesh)
-    s.add_geometry(voxels.as_boxes(colors=np.array([200, 50, 50, 150])))
-    s.show()
+    # s = trimesh.Scene()
+    # # s.add_geometry(mesh)
+    # s.add_geometry(voxels.as_boxes(colors=np.array([200, 50, 50, 150])))
+    # s.show()
 
     for i in range(10):
         # random_point = np.zeros(3)
