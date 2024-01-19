@@ -15,7 +15,7 @@ def voxelize(mesh):
 
     # start = time.time()
     angel_voxel = mesh.voxelized(pitch=desired_voxel_size, method="ray")  # ray, subdivide, binvox
-    angel_voxel.fill(method='base')
+    # angel_voxel.fill(method='base')
     # base=fill_base,
     # orthographic=fill_orthographic,
     # holes=fill_holes,
@@ -62,10 +62,10 @@ def check_voxel_fill_equivalency():
     voxels = voxelize(mesh)
     voxel_auxiliary = VoxelAuxilliaryInfo(voxels)
 
-    # s = trimesh.Scene()
-    # # s.add_geometry(mesh)
-    # s.add_geometry(voxels.as_boxes(colors=np.array([200, 50, 50, 150])))
-    # s.show()
+    s = trimesh.Scene()
+    # s.add_geometry(mesh)
+    s.add_geometry(voxels.as_boxes(colors=np.array([200, 50, 50, 150])))
+    s.show()
 
     for i in range(10):
         # random_point = np.zeros(3)
