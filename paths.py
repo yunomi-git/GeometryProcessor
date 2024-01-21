@@ -8,6 +8,17 @@ HOME_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
 STL_PATH = HOME_PATH + "/../STL_Onshape_Dataset/"
 
 def get_onshape_stl_path(i):
+    # 34 box with holes
+    # 166* Gear intricate
+    # 177 hollow interior
+    # 263* wedge
+    # 20* intricate turbine?
+    # 226* extremely intricate clock
+    # 265* complex screw
+    # 183* struts with ribs 1
+    # 162* struts simple
+    # 165* struts opening with rib holes 2
+    # 167* bike frame
     return STL_PATH + "solid_" + str(i) + ".stl"
 
 def select_file(init_dir=HOME_PATH, choose_file=True):

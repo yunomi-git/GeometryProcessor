@@ -6,6 +6,7 @@ import numpy as np
 import paths
 import random
 import stopwatch
+from tqdm import tqdm
 
 NO_GAP_VALUE = -1
 
@@ -16,9 +17,7 @@ def calculate_and_show_gap(mesh):
     num_facets = mesh_aux.num_facets
     gap_sizes = np.empty(num_facets)
 
-    for i in range(num_facets):
-        if i%500 == 0:
-            print(i)
+    for i in tqdm(range(num_facets)):
         normal = mesh_aux.facet_normals[i,:]
         origin = mesh_aux.facet_centroids[i,:]
         facet_offset = normal * 0.001
@@ -50,12 +49,14 @@ def calculate_and_show_gap(mesh):
     s.show()
 
 if __name__ == "__main__":
-    # mesh_path = paths.get_onshape_stl_path(2)
-    mesh_path = 'stls/crane.stl'
+    ## Single STL
+    mesh_path = paths.get_onshape_stl_path(165)
+    # mesh_path = 'stls/crane.stl'
     mesh = trimesh.load(mesh_path)
     # mesh = trimesh_util.TRIMESH_TEST_MESH
     calculate_and_show_gap(mesh)
 
+    ## Multi STL
     # for i in range(20):
     #     mesh_path = paths.get_onshape_stl_path(random.randint(1, 300))
     #     mesh = trimesh.load(mesh_path)

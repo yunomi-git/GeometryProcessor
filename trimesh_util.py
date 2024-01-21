@@ -1,8 +1,64 @@
 import trimesh
 import numpy as np
 from stopwatch import Stopwatch
+from tqdm import tqdm
+
+
 TRIMESH_TEST_MESH = trimesh.Trimesh(vertices=np.array([[0.0, 1, 0.0], [1, 0.0, 0.0], [0, 0, 0], [0.0, 0.01, 1]]),
                                     faces=np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]]))
+NO_GAP_VALUE = -1
+
+class MeshAuxilliaryInfo:
+    def __init__(self, mesh):
+        self.mesh = mesh
+        self.bound_lower = mesh.bounds[0, :].copy()
+        self.bound_upper = mesh.bounds[1, :].copy()
+        self.bound_length = self.bound_upper - self.bound_lower
+
+        self.facet_centroids = mesh.triangles_center
+        self.facet_normals = mesh.face_normals
+        self.facet_areas = mesh.area_faces
+        self.num_facets = len(self.facet_centroids)
+
+    def get_thicknesses(self):
+        trimesh.repair.fix_normals(self.mesh, multibody=True)
+
+        num_facets = self.num_facets
+
+        facet_offset = -self.facet_normals * 0.001
+        hits = self.mesh.ray.intersects_location(ray_origins=self.facet_centroids + facet_offset,
+                                                 ray_directions=-self.facet_normals,
+                                                 multiple_hits=False)[0]
+
+        if len(hits) != num_facets:
+            print("Trimesh thickness error: ", len(hits), " hits detected. ", num_facets, "hits expected.")
+            return
+        wall_thicknesses = np.linalg.norm(hits - self.facet_centroids, axis=1)
+        return wall_thicknesses
+
+    def calculate_and_show_gap(self):
+        trimesh.repair.fix_normals(self.mesh, multibody=True)
+
+        num_facets = self.num_facets
+        gap_sizes = np.empty(num_facets)
+
+        for i in tqdm(range(num_facets)):
+            normal = self.facet_normals[i, :]
+            origin = self.facet_centroids[i, :]
+            facet_offset = normal * 0.001
+            hits = self.mesh.ray.intersects_location(ray_origins=(origin + facet_offset)[np.newaxis, :],
+                                                     ray_directions=normal[np.newaxis, :],
+                                                     multiple_hits=False)[0]
+            if len(hits) == 0:
+                gap_sizes[i] = NO_GAP_VALUE
+            else:
+                first_hit = hits[0]
+                distance = np.linalg.norm(origin - first_hit)
+                gap_sizes[i] = distance
+        return gap_sizes
+
+
+### Below is voxel stuff. Unused.
 
 def voxelize(mesh):
     bounds = mesh.bounds
@@ -39,19 +95,6 @@ class VoxelAuxilliaryInfo:
     def check_voxel_is_filled(self, point):
         grid_index = np.floor((point - self.bound_lower) / self.grid_size).astype(int)
         return self.voxel.encoding.dense[grid_index[0], grid_index[1], grid_index[2]]
-
-class MeshAuxilliaryInfo:
-    def __init__(self, mesh):
-        self.mesh = mesh
-        self.bound_lower = mesh.bounds[0, :].copy()
-        self.bound_upper = mesh.bounds[1, :].copy()
-        self.bound_length = self.bound_upper - self.bound_lower
-
-        self.facet_centroids = mesh.triangles_center
-        self.facet_normals = mesh.face_normals
-        self.facet_areas = mesh.area_faces
-        self.num_facets = len(self.facet_centroids)
-
 
 def check_voxel_fill_equivalency():
     stopwatch = Stopwatch()
