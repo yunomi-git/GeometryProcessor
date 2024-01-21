@@ -4,6 +4,7 @@ import trimesh
 import trimesh_util
 import numpy as np
 import paths
+import random
 import stopwatch
 
 def calculate_and_show_thickness(mesh):
@@ -18,6 +19,8 @@ def calculate_and_show_thickness(mesh):
                                         ray_directions=-mesh_aux.facet_normals,
                                         multiple_hits=False)[0]
 
+    if len(hits) != num_facets:
+        return
     distances = np.linalg.norm(hits - mesh_aux.facet_centroids, axis=1)
     wall_thicknesses = distances
 
@@ -28,7 +31,6 @@ def calculate_and_show_thickness(mesh):
 
     cmapname = 'jet'
     cmap = plt.get_cmap(cmapname)
-    colors = cmap(wall_thicknesses)
     mesh.visual.face_colors = cmap(wall_thicknesses)
 
     s = trimesh.Scene()
@@ -37,8 +39,11 @@ def calculate_and_show_thickness(mesh):
 
 if __name__ == "__main__":
     # mesh_path = paths.get_onshape_stl_path(2)
-    mesh_path = 'stls/crane.stl'
-    mesh = trimesh.load(mesh_path)
+    # mesh_path = 'stls/crane.stl'
+    # mesh = trimesh.load(mesh_path)
     # mesh = trimesh_util.TRIMESH_TEST_MESH
 
-    calculate_and_show_thickness(mesh)
+    for i in range(20):
+        mesh_path = paths.get_onshape_stl_path(random.randint(1, 300))
+        mesh = trimesh.load(mesh_path)
+        calculate_and_show_thickness(mesh)

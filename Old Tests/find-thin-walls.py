@@ -7,7 +7,7 @@ from matplotlib import cm
 import vtkplotlib as vpl
 
 if __name__ == "__main__":
-    mesh_to_analyze = mesh.Mesh.from_file('stls/kunai.stl')
+    mesh_to_analyze = mesh.Mesh.from_file('../stls/kunai.stl')
 
 
 

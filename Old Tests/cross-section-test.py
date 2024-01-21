@@ -4,7 +4,7 @@ import trimesh
 import numpy as np
 from shapely.geometry import LineString
 
-mesh = trimesh.load('stls/Antenna_DJI.stl', force="mesh")
+mesh = trimesh.load('../stls/Antenna_DJI.stl', force="mesh")
 # mesh.show()
 
 slice = mesh.section(plane_origin=mesh.centroid,
