@@ -15,7 +15,7 @@ def sample_and_get_normals(mesh, mesh_aux: trimesh_util.MeshAuxilliaryInfo):
     normals = mesh_aux.facet_normals[face_index]
     return sample_points, normals
 
-def show_sampled_thickness(mesh):
+def get_sampled_thickness(mesh):
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
     origins, normals = sample_and_get_normals(mesh, mesh_aux)
 
@@ -28,28 +28,10 @@ def show_sampled_thickness(mesh):
         print("Trimesh thickness error: ", len(hits), " hits detected. ", len(origins), "hits expected.")
         return
     distances = np.linalg.norm(hits - origins, axis=1)
-    wall_thicknesses = distances
 
-    # Now normalize
-    wall_thicknesses -= np.amin(wall_thicknesses)
-    max_thickness = np.amax(wall_thicknesses)
-    wall_thicknesses /= max_thickness
+    return origins, distances
 
-    cmapname = 'jet'
-    cmap = plt.get_cmap(cmapname)
-    # mesh.visual.face_colors = cmap(wall_thicknesses)
-    colors = cmap(wall_thicknesses)
-    colors[:, 3] = 0.8
-
-    point_cloud = trimesh.points.PointCloud(vertices=origins,
-                                            colors=colors)
-
-    s = trimesh.Scene()
-    s.add_geometry(point_cloud)
-    s.add_geometry(mesh)
-    s.show()
-
-def show_sampled_gaps(mesh):
+def get_sampled_gaps(mesh):
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
     origins, normals = sample_and_get_normals(mesh, mesh_aux)
 
@@ -72,8 +54,6 @@ def show_sampled_gaps(mesh):
 
     print("Num gap samples: ", len(gap_sizes[gap_sizes != NO_GAP_VALUE]))
 
-    s = trimesh.Scene()
-
     # Now normalize
     if len(gap_sizes[gap_sizes != NO_GAP_VALUE]) > 0:
         gap_sizes[gap_sizes != NO_GAP_VALUE] -= np.amin(gap_sizes[gap_sizes != NO_GAP_VALUE])
@@ -83,15 +63,7 @@ def show_sampled_gaps(mesh):
         gap_points = origins[gap_sizes != NO_GAP_VALUE]
         gaps = gap_sizes[gap_sizes != NO_GAP_VALUE]
 
-        cmapname = 'jet'
-        cmap = plt.get_cmap(cmapname)
-        colors = 255.0 * cmap(gaps)
-        point_cloud = trimesh.points.PointCloud(vertices=gap_points,
-                                                colors=colors)
-        s.add_geometry(point_cloud)
-
-    s.add_geometry(mesh)
-    s.show()
+        return gap_points, gaps
 
 def sample_evenly_and_show(mesh):
     sample_points, face_index = trimesh.sample.sample_surface_even(mesh, 10000)
@@ -122,5 +94,5 @@ if __name__ == "__main__":
         mesh = trimesh.load(mesh_path)
         # show_sampled_thickness(mesh)
         # sample_evenly_and_show(mesh)
-        show_sampled_gaps(mesh)
+        get_sampled_gaps(mesh)
 
