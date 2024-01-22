@@ -42,6 +42,6 @@ if __name__=="__main__":
     # angel_voxel = scale_and_vox(mesh_path)
 
     for i in range(20):
-        mesh_path = paths.STL_PATH + "solid_" + str(i) + ".stl"
+        mesh_path = paths.ONSHAPE_STL_PATH + "solid_" + str(i) + ".stl"
         angel_voxel = scale_and_vox(mesh_path)
 

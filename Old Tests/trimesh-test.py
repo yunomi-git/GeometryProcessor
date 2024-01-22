@@ -10,7 +10,7 @@ if __name__=="__main__":
     # which will for scene-like files will return a `trimesh.Scene` object.
     # if you *always* want a straight `trimesh.Trimesh` you can ask the
     # loader to "force" the result into a mesh through concatenation
-    mesh = trimesh.load('stls/low-res.stl', force='mesh')
+    mesh = trimesh.load('../stls/low-res.stl', force='mesh')
 
     # is the current mesh watertight?
     mesh.is_watertight

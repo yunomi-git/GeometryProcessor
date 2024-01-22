@@ -5,7 +5,9 @@ from tkinter.filedialog import askopenfilename
 # import torch
 
 HOME_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
-STL_PATH = HOME_PATH + "/../STL_Onshape_Dataset/"
+ONSHAPE_STL_PATH = HOME_PATH + "/../Onshape_STL_Dataset/"
+THINGIVERSE_STL_PATH = HOME_PATH + "/../Thingiverse_STL_Dataset/"
+
 
 def get_onshape_stl_path(i):
     # 34 box with holes
@@ -19,7 +21,15 @@ def get_onshape_stl_path(i):
     # 162* struts simple
     # 165* struts opening with rib holes 2
     # 167* bike frame
-    return STL_PATH + "solid_" + str(i) + ".stl"
+    return ONSHAPE_STL_PATH + "solid_" + str(i) + ".stl"
+
+def get_thingiverse_stl_path(i, get_by_order=True):
+    if get_by_order:
+        contents = os.listdir(THINGIVERSE_STL_PATH)
+        return THINGIVERSE_STL_PATH + contents[i]
+    else:
+        return THINGIVERSE_STL_PATH + str(i) + ".stl"
+
 
 def select_file(init_dir=HOME_PATH, choose_file=True):
     Tk().withdraw()  # we don't want a full GUI, so keep the root window from appearing
