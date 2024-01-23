@@ -87,8 +87,9 @@ if __name__ == "__main__":
 
     # ## Multi STL
     for i in range(20):
-        random_index = random.randint(0, 10000)
-        print(random_index)
+        # random_index = random.randint(0, 10000)
+        # print(random_index)
+        random_index = i
         mesh_path = paths.get_thingiverse_stl_path(random_index)
         mesh = trimesh.load(mesh_path)
         # show_sampled_thickness(mesh)
