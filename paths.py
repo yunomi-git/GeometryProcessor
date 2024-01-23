@@ -24,6 +24,7 @@ def get_onshape_stl_path(i):
     return ONSHAPE_STL_PATH + "solid_" + str(i) + ".stl"
 
 def get_thingiverse_stl_path(i, get_by_order=True):
+    # 2664 chicken legs
     if get_by_order:
         contents = os.listdir(THINGIVERSE_STL_PATH)
         return THINGIVERSE_STL_PATH + contents[i]

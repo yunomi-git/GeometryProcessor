@@ -6,6 +6,7 @@ import numpy as np
 import paths
 import random
 import stopwatch
+import pandas as pd
 from tqdm import tqdm
 
 NO_GAP_VALUE = -1
@@ -65,17 +66,15 @@ def get_sampled_gaps(mesh):
 
         return gap_points, gaps
 
-def sample_evenly_and_show(mesh):
-    sample_points, face_index = trimesh.sample.sample_surface_even(mesh, 10000)
+def save(points, values, filename):
+    names = ["x", "y", "z", "value"]
+    data = np.concatenate([points, values[:, np.newaxis]], axis=1)
+    df = pd.DataFrame(data=data, columns=names)
+    print("saving")
+    print(filename)
+    df.to_csv(filename + ".csv", index=False, header=True)
 
-    samples_color = np.array([255, 0, 0, 255])
-    point_cloud = trimesh.points.PointCloud(vertices=sample_points,
-                                       colors=samples_color)
 
-    s = trimesh.Scene()
-    s.add_geometry(mesh)
-    s.add_geometry(point_cloud)
-    s.show()
 
 if __name__ == "__main__":
     ## Single STL
@@ -93,6 +92,7 @@ if __name__ == "__main__":
         mesh_path = paths.get_thingiverse_stl_path(random_index)
         mesh = trimesh.load(mesh_path)
         # show_sampled_thickness(mesh)
-        # sample_evenly_and_show(mesh)
-        get_sampled_gaps(mesh)
+        points, values = get_sampled_gaps(mesh)
+        save(points, values, paths.HOME_PATH + "generation_output/TRIMESH" + str(random_index))
+
 

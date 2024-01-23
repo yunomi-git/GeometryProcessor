@@ -108,19 +108,19 @@ def sample_evenly_and_show(mesh):
 if __name__ == "__main__":
     ## Single STL
     # mesh_path = paths.get_onshape_stl_path(185)
-    # mesh_path = paths.get_thingiverse_stl_path(1324)
+    mesh_path = paths.get_thingiverse_stl_path(2664)
     # mesh_path = 'stls/crane.stl'
-    # mesh = trimesh.load(mesh_path)
+    mesh = trimesh.load(mesh_path)
     # # mesh = trimesh_util.TRIMESH_TEST_MESH
-    # show_sampled_gaps(mesh)
+    show_sampled_gaps(mesh)
 
-    # ## Multi STL
-    for i in range(20):
-        random_index = random.randint(0, 10000)
-        print(random_index)
-        mesh_path = paths.get_thingiverse_stl_path(random_index)
-        mesh = trimesh.load(mesh_path)
-        # show_sampled_thickness(mesh)
-        # sample_evenly_and_show(mesh)
-        show_sampled_gaps(mesh)
+    # # ## Multi STL
+    # for i in range(20):
+    #     random_index = random.randint(0, 10000)
+    #     print(random_index)
+    #     mesh_path = paths.get_thingiverse_stl_path(random_index)
+    #     mesh = trimesh.load(mesh_path)
+    #     show_sampled_thickness(mesh)
+    #     # sample_evenly_and_show(mesh)
+    #     # show_sampled_gaps(mesh)
 
