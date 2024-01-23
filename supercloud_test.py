@@ -1,4 +1,6 @@
 # if you have pyembree this should be decently fast
+import sys
+
 import matplotlib.pyplot as plt
 import trimesh
 import trimesh_util
@@ -83,7 +85,9 @@ def save(points, values, filename):
     print(filename)
     df.to_csv(filename + ".csv", index=False, header=True)
 
-
+total_stls = 0
+my_task_id = 0
+num_tasks = 1
 
 if __name__ == "__main__":
     ## Single STL
@@ -94,8 +98,12 @@ if __name__ == "__main__":
     # # mesh = trimesh_util.TRIMESH_TEST_MESH
     # show_sampled_gaps(mesh)
 
+    total_stls = int(sys.argv[1])
+    my_task_id = int(sys.argv[2])
+    num_tasks = int(sys.argv[3])
+
     # ## Multi STL
-    for i in range(20):
+    for i in range(my_task_id, total_stls, num_tasks):
         # random_index = random.randint(0, 10000)
         # print(random_index)
         random_index = i
