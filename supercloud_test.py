@@ -5,7 +5,7 @@ import trimesh_util
 import numpy as np
 import paths
 import random
-import stopwatch
+from stopwatch import Stopwatch
 import pandas as pd
 from tqdm import tqdm
 
@@ -38,29 +38,38 @@ def get_sampled_gaps(mesh):
 
     num_samples = len(origins)
     gap_sizes = np.empty(num_samples)
+    norm_stopwatch = Stopwatch()
+    intersect_stopwatch = Stopwatch()
+
 
     for i in tqdm(range(num_samples)):
         normal = normals[i, :]
         origin = origins[i, :]
         facet_offset = normal * 0.001
+
+        intersect_stopwatch.resume()
         hits = mesh.ray.intersects_location(ray_origins=(origin + facet_offset)[np.newaxis, :],
                                                  ray_directions=normal[np.newaxis, :],
                                                  multiple_hits=False)[0]
+        intersect_stopwatch.pause()
+
         if len(hits) == 0:
             gap_sizes[i] = NO_GAP_VALUE
         else:
             first_hit = hits[0]
+
+            norm_stopwatch.resume()
             distance = np.linalg.norm(origin - first_hit)
+            norm_stopwatch.pause()
+
             gap_sizes[i] = distance
 
-    print("Num gap samples: ", len(gap_sizes[gap_sizes != NO_GAP_VALUE]))
+    print("Intersection time: ", intersect_stopwatch.get_elapsed_time())
+    print("Norm time: ", norm_stopwatch.get_elapsed_time())
+    # print("Num gap samples: ", len(gap_sizes[gap_sizes != NO_GAP_VALUE]))
 
     # Now normalize
     if len(gap_sizes[gap_sizes != NO_GAP_VALUE]) > 0:
-        gap_sizes[gap_sizes != NO_GAP_VALUE] -= np.amin(gap_sizes[gap_sizes != NO_GAP_VALUE])
-        max_thickness = np.amax(gap_sizes)
-        gap_sizes[gap_sizes != NO_GAP_VALUE] /= max_thickness
-
         gap_points = origins[gap_sizes != NO_GAP_VALUE]
         gaps = gap_sizes[gap_sizes != NO_GAP_VALUE]
 
@@ -94,6 +103,7 @@ if __name__ == "__main__":
         mesh = trimesh.load(mesh_path)
         # show_sampled_thickness(mesh)
         points, values = get_sampled_gaps(mesh)
-        save(points, values, paths.HOME_PATH + "generation_output/TRIMESH" + str(random_index))
+        if points is not None:
+            save(points, values, paths.HOME_PATH + "generation_output/TRIMESH" + str(random_index))
 
 

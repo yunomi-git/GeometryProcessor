@@ -59,7 +59,7 @@ def search_for_surface_point(voxel, start_point, end_point):
         # point_is_filled = voxel.is_filled(test_point)
         point_is_filled = trimesh_util.check_voxel_is_filled(voxel, point=test_point)
         print("voxel fill check", point_is_filled)
-        stopwatch.get_time()
+        stopwatch.print_time()
 
         if point_is_filled:
             filled_bound = test_point
@@ -95,7 +95,7 @@ def get_thickness_from_voxels(mesh, voxel):
         stopwatch.start()
         surface_point = search_for_surface_point(voxel, start_point, end_point)
         print("search intersect")
-        stopwatch.get_time()
+        stopwatch.print_time()
 
 
         face_thicknesses[i] = np.linalg.norm(surface_point - start_point)

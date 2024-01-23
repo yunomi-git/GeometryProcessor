@@ -116,12 +116,12 @@ def check_voxel_fill_equivalency():
         stopwatch.start()
         fill_new = voxel_auxiliary.check_voxel_is_filled(random_point)
         print("new")
-        stopwatch.get_time()
+        stopwatch.print_time()
 
         stopwatch.start()
         fill_orig = voxels.is_filled(random_point)
         print("orig")
-        stopwatch.get_time()
+        stopwatch.print_time()
 
         print("Equal?: ", fill_new == fill_orig)
         print("Point: ", random_point)
