@@ -20,14 +20,16 @@ def show_sampled_thickness(mesh):
     origins, normals = sample_and_get_normals(mesh, mesh_aux)
 
     facet_offset = -normals * 0.001
-    hits = mesh.ray.intersects_location(ray_origins=origins + facet_offset,
+    hits, ray_ids, tri_ids = mesh.ray.intersects_location(ray_origins=origins + facet_offset,
                                         ray_directions=-normals,
-                                        multiple_hits=False)[0]
+                                        multiple_hits=False)
 
-    if len(hits) != len(origins):
-        print("Trimesh thickness error: ", len(hits), " hits detected. ", len(origins), "hits expected.")
-        return
-    distances = np.linalg.norm(hits - origins, axis=1)
+    hit_origins = origins[ray_ids]
+
+    # if len(hits) != len(origins):
+    #     print("Trimesh thickness error: ", len(hits), " hits detected. ", len(origins), "hits expected.")
+    #     return
+    distances = np.linalg.norm(hits - hit_origins, axis=1)
     wall_thicknesses = distances
 
     # Now normalize
@@ -41,7 +43,7 @@ def show_sampled_thickness(mesh):
     colors = cmap(wall_thicknesses)
     colors[:, 3] = 0.8
 
-    point_cloud = trimesh.points.PointCloud(vertices=origins,
+    point_cloud = trimesh.points.PointCloud(vertices=hit_origins,
                                             colors=colors)
 
     s = trimesh.Scene()
@@ -53,42 +55,28 @@ def show_sampled_gaps(mesh):
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
     origins, normals = sample_and_get_normals(mesh, mesh_aux)
 
-    num_samples = len(origins)
-    gap_sizes = np.empty(num_samples)
-
-    for i in tqdm(range(num_samples)):
-        normal = normals[i, :]
-        origin = origins[i, :]
-        facet_offset = normal * 0.001
-        hits = mesh.ray.intersects_location(ray_origins=(origin + facet_offset)[np.newaxis, :],
-                                                 ray_directions=normal[np.newaxis, :],
-                                                 multiple_hits=False)[0]
-        if len(hits) == 0:
-            gap_sizes[i] = NO_GAP_VALUE
-        else:
-            first_hit = hits[0]
-            distance = np.linalg.norm(origin - first_hit)
-            gap_sizes[i] = distance
+    facet_offset = normals * 0.1 # This offset needs to be tuned based on stl dimensions
+    hits, ray_ids, tri_ids = mesh.ray.intersects_location(ray_origins=origins + facet_offset,
+                                        ray_directions=normals,
+                                        multiple_hits=False)
+    hit_origins = origins[ray_ids]
+    distances = np.linalg.norm(hits - hit_origins, axis=1)
+    gap_sizes = distances
 
     print("Num gap samples: ", len(gap_sizes[gap_sizes != NO_GAP_VALUE]))
 
     s = trimesh.Scene()
 
-    # Now normalize
-    if len(gap_sizes[gap_sizes != NO_GAP_VALUE]) > 0:
-        gap_sizes[gap_sizes != NO_GAP_VALUE] -= np.amin(gap_sizes[gap_sizes != NO_GAP_VALUE])
-        max_thickness = np.amax(gap_sizes)
-        gap_sizes[gap_sizes != NO_GAP_VALUE] /= max_thickness
+    gap_sizes -= np.amin(gap_sizes)
+    max_thickness = np.amax(gap_sizes)
+    gap_sizes /= max_thickness
 
-        gap_points = origins[gap_sizes != NO_GAP_VALUE]
-        gaps = gap_sizes[gap_sizes != NO_GAP_VALUE]
-
-        cmapname = 'jet'
-        cmap = plt.get_cmap(cmapname)
-        colors = 255.0 * cmap(gaps)
-        point_cloud = trimesh.points.PointCloud(vertices=gap_points,
-                                                colors=colors)
-        s.add_geometry(point_cloud)
+    cmapname = 'jet'
+    cmap = plt.get_cmap(cmapname)
+    colors = 255.0 * cmap(gap_sizes)
+    point_cloud = trimesh.points.PointCloud(vertices=hit_origins,
+                                            colors=colors)
+    s.add_geometry(point_cloud)
 
     s.add_geometry(mesh)
     s.show()
@@ -108,11 +96,12 @@ def sample_evenly_and_show(mesh):
 if __name__ == "__main__":
     ## Single STL
     # mesh_path = paths.get_onshape_stl_path(185)
-    mesh_path = paths.get_thingiverse_stl_path(2664)
+    mesh_path = paths.get_thingiverse_stl_path(5561)
     # mesh_path = 'stls/crane.stl'
     mesh = trimesh.load(mesh_path)
     # # mesh = trimesh_util.TRIMESH_TEST_MESH
-    show_sampled_gaps(mesh)
+    # show_sampled_gaps(mesh)
+    show_sampled_thickness(mesh)
 
     # # ## Multi STL
     # for i in range(20):
@@ -120,7 +109,7 @@ if __name__ == "__main__":
     #     print(random_index)
     #     mesh_path = paths.get_thingiverse_stl_path(random_index)
     #     mesh = trimesh.load(mesh_path)
-    #     show_sampled_thickness(mesh)
+    #     # show_sampled_thickness(mesh)
     #     # sample_evenly_and_show(mesh)
-    #     # show_sampled_gaps(mesh)
+    #     show_sampled_gaps(mesh)
 

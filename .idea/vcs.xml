@@ -2,21 +2,6 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/cli11" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/cli11/extern/googletest" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/cli11/extern/json" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/cli11/extern/sanitizers" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/fmt" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/geogram" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/libigl" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/libigl/external/cgal" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/libigl/external/eigen" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/polyscope" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/polyscope/deps/glfw" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/polyscope/deps/happly" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/polyscope/deps/imgui/imgui" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/matfp/extern/spdlog" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/mistree" vcs="Git" />
   </component>
 </project>
