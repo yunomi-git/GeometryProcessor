@@ -2,6 +2,8 @@ import trimesh
 import numpy as np
 from stopwatch import Stopwatch
 from tqdm import tqdm
+import util
+import matplotlib.pyplot as plt
 
 
 TRIMESH_TEST_MESH = trimesh.Trimesh(vertices=np.array([[0.0, 1, 0.0], [1, 0.0, 0.0], [0, 0, 0], [0.0, 0.01, 1]]),
@@ -20,43 +22,119 @@ class MeshAuxilliaryInfo:
         self.facet_areas = mesh.area_faces
         self.num_facets = len(self.facet_centroids)
 
-    def get_thicknesses(self):
+    def sample_and_get_normals(self, count=50000):
+        sample_points, face_index = trimesh.sample.sample_surface_even(mesh=self.mesh, count=count)
+        normals = self.facet_normals[face_index]
+        return sample_points, normals
+
+    def calculate_thicknesses_samples(self, count=50000):
+        trimesh.repair.fix_normals(self.mesh, multibody=True)
+        origins, normals = self.sample_and_get_normals(count)
+
+        facet_offset = -normals * 0.001
+        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=origins + facet_offset,
+                                                                   ray_directions=-normals,
+                                                                   multiple_hits=False)
+
+        hit_origins = origins[ray_ids]
+        print("hits", len(hit_origins))
+
+        distances = np.linalg.norm(hits - hit_origins, axis=1)
+        wall_thicknesses = distances
+        return hit_origins, wall_thicknesses
+
+    def calculate_gap_samples(self, count=50000):
+        trimesh.repair.fix_normals(self.mesh, multibody=True)
+        origins, normals = self.sample_and_get_normals(count)
+
+        facet_offset = normals * 0.1  # This offset needs to be tuned based on stl dimensions
+        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=origins + facet_offset,
+                                                                   ray_directions=normals,
+                                                                   multiple_hits=False)
+        hit_origins = origins[ray_ids]
+        distances = np.linalg.norm(hits - hit_origins, axis=1)
+        gap_sizes = distances
+        return hit_origins, gap_sizes
+
+    def calculate_thicknesses_facets(self):
         trimesh.repair.fix_normals(self.mesh, multibody=True)
 
         num_facets = self.num_facets
 
         facet_offset = -self.facet_normals * 0.001
-        hits = self.mesh.ray.intersects_location(ray_origins=self.facet_centroids + facet_offset,
+        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=self.facet_centroids + facet_offset,
                                                  ray_directions=-self.facet_normals,
-                                                 multiple_hits=False)[0]
+                                                 multiple_hits=False)
 
-        if len(hits) != num_facets:
-            print("Trimesh thickness error: ", len(hits), " hits detected. ", num_facets, "hits expected.")
-            return
-        wall_thicknesses = np.linalg.norm(hits - self.facet_centroids, axis=1)
+        hit_origins = self.facet_centroids[tri_ids]
+        distances = np.linalg.norm(hits - hit_origins, axis=1)
+        wall_thicknesses = np.ones(num_facets) * NO_GAP_VALUE
+        wall_thicknesses[tri_ids] = distances
+
         return wall_thicknesses
 
-    def calculate_and_show_gap(self):
+    def calculate_gap_facets(self):
         trimesh.repair.fix_normals(self.mesh, multibody=True)
 
         num_facets = self.num_facets
-        gap_sizes = np.empty(num_facets)
 
-        for i in tqdm(range(num_facets)):
-            normal = self.facet_normals[i, :]
-            origin = self.facet_centroids[i, :]
-            facet_offset = normal * 0.001
-            hits = self.mesh.ray.intersects_location(ray_origins=(origin + facet_offset)[np.newaxis, :],
-                                                     ray_directions=normal[np.newaxis, :],
-                                                     multiple_hits=False)[0]
-            if len(hits) == 0:
-                gap_sizes[i] = NO_GAP_VALUE
-            else:
-                first_hit = hits[0]
-                distance = np.linalg.norm(origin - first_hit)
-                gap_sizes[i] = distance
+        facet_offset = self.facet_normals * 0.1
+        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=self.facet_centroids + facet_offset,
+                                                                   ray_directions=self.facet_normals,
+                                                                   multiple_hits=False)
+        hit_origins = self.facet_centroids[tri_ids]
+        distances = np.linalg.norm(hits - hit_origins, axis=1)
+        gap_sizes = np.ones(num_facets) * NO_GAP_VALUE
+        gap_sizes[tri_ids] = distances
         return gap_sizes
 
+def show_sampled_values(mesh, points, values, normalize=True):
+    s = trimesh.Scene()
+
+    if normalize:
+        values = util.normalize_minmax_01(values)
+
+    cmapname = 'jet'
+    cmap = plt.get_cmap(cmapname)
+    colors = 255.0 * cmap(values)
+    colors[:, 3] = int(0.8 * 255)
+    point_cloud = trimesh.points.PointCloud(vertices=points,
+                                            colors=colors)
+    s.add_geometry(point_cloud)
+    s.add_geometry(mesh)
+    s.show()
+
+def show_mesh_with_facet_colors(mesh, values: np.ndarray, normalize=True):
+    s = trimesh.Scene()
+
+    cmapname = 'jet'
+    cmap = plt.get_cmap(cmapname)
+    empty_color = np.array([100, 100, 100, 255])
+
+    if normalize:
+        values[values != NO_GAP_VALUE] = util.normalize_minmax_01(values[values != NO_GAP_VALUE])
+    mesh.visual.face_colors = cmap(values)
+    mesh.visual.face_colors[values == NO_GAP_VALUE] = empty_color
+
+    s.add_geometry(mesh)
+    s.show()
+
+def show_mesh(mesh):
+    s = trimesh.Scene()
+    s.add_geometry(mesh)
+    s.show()
+
+def show_mesh_with_orientation(mesh):
+    mesh_aux = MeshAuxilliaryInfo(mesh)
+    colors = util.direction_to_color(mesh_aux.facet_normals)
+    mesh.visual.face_colors = colors
+    s = trimesh.Scene()
+    s.add_geometry(mesh)
+    s.show()
+
+
+if __name__=="__main__":
+    print("hi")
 
 ### Below is voxel stuff. Unused.
 
@@ -128,5 +206,3 @@ def check_voxel_fill_equivalency():
         print("Fill?: ", fill_new)
         print("------")
 
-if __name__=="__main__":
-    check_voxel_fill_equivalency()

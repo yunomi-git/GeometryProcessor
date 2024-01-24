@@ -7,14 +7,10 @@ import paths
 import random
 import stopwatch
 from tqdm import tqdm
+import util
 
 NO_GAP_VALUE = -1
 
-def normalize_01(array: np.ndarray):
-    copy = array.copy()
-    copy -= np.amin(copy)
-    copy /= np.amax(copy)
-    return copy
 
 def sample_and_get_normals(mesh, mesh_aux: trimesh_util.MeshAuxilliaryInfo):
     sample_points, face_index = trimesh.sample.sample_surface_even(mesh, 50000)
@@ -56,7 +52,7 @@ def show_sampled_gaps(mesh):
 def show_sampled_values(mesh, points, values):
     s = trimesh.Scene()
 
-    norm_values = normalize_01(values)
+    norm_values = util.normalize_minmax_01(values)
 
     cmapname = 'jet'
     cmap = plt.get_cmap(cmapname)

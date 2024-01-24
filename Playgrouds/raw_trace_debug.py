@@ -16,7 +16,7 @@ def get_hit_for_facet(i, mesh, mesh_aux):
 
 if __name__=="__main__":
     # mesh_path = paths.get_onshape_stl_path(2)
-    mesh_path = 'stls/Antenna_DJI.stl'
+    mesh_path = '../stls/Antenna_DJI.stl'
     mesh = trimesh.load(mesh_path)
     # mesh = trimesh_util.TRIMESH_TEST_MESH
 
