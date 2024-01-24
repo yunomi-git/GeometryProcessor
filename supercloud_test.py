@@ -27,8 +27,10 @@ if __name__ == "__main__":
     stopwatch = Stopwatch()
 
     # ## Multi STL
+    count = 0
     stopwatch.start()
     for i in range(my_task_id, total_stls, num_tasks):
+        count += 1
         # random_index = random.randint(0, 10000)
         # print(random_index)
         index = i
@@ -39,6 +41,9 @@ if __name__ == "__main__":
 
         if points is not None:
             save(points, values, paths.HOME_PATH + "generation_output/TRIMESH_" + str(index))
-    stopwatch.print_time()
+    time = stopwatch.get_time()
+    print("count: ", count)
+    print("time: ", time)
+    print("rate: ", count / time)
 
 
