@@ -10,6 +10,12 @@ from tqdm import tqdm
 
 NO_GAP_VALUE = -1
 
+def normalize_01(array: np.ndarray):
+    copy = array.copy()
+    copy -= np.amin(copy)
+    copy /= np.amax(copy)
+    return copy
+
 def sample_and_get_normals(mesh, mesh_aux: trimesh_util.MeshAuxilliaryInfo):
     sample_points, face_index = trimesh.sample.sample_surface_even(mesh, 50000)
     normals = mesh_aux.facet_normals[face_index]
@@ -26,30 +32,10 @@ def show_sampled_thickness(mesh):
 
     hit_origins = origins[ray_ids]
 
-    # if len(hits) != len(origins):
-    #     print("Trimesh thickness error: ", len(hits), " hits detected. ", len(origins), "hits expected.")
-    #     return
     distances = np.linalg.norm(hits - hit_origins, axis=1)
     wall_thicknesses = distances
 
-    # Now normalize
-    wall_thicknesses -= np.amin(wall_thicknesses)
-    max_thickness = np.amax(wall_thicknesses)
-    wall_thicknesses /= max_thickness
-
-    cmapname = 'jet'
-    cmap = plt.get_cmap(cmapname)
-    # mesh.visual.face_colors = cmap(wall_thicknesses)
-    colors = cmap(wall_thicknesses)
-    colors[:, 3] = 0.8
-
-    point_cloud = trimesh.points.PointCloud(vertices=hit_origins,
-                                            colors=colors)
-
-    s = trimesh.Scene()
-    s.add_geometry(point_cloud)
-    s.add_geometry(mesh)
-    s.show()
+    show_sampled_values(mesh, points=hit_origins, values=wall_thicknesses)
 
 def show_sampled_gaps(mesh):
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
@@ -65,19 +51,20 @@ def show_sampled_gaps(mesh):
 
     print("Num gap samples: ", len(gap_sizes[gap_sizes != NO_GAP_VALUE]))
 
+    show_sampled_values(mesh, points=hit_origins, values=gap_sizes)
+
+def show_sampled_values(mesh, points, values):
     s = trimesh.Scene()
 
-    gap_sizes -= np.amin(gap_sizes)
-    max_thickness = np.amax(gap_sizes)
-    gap_sizes /= max_thickness
+    norm_values = normalize_01(values)
 
     cmapname = 'jet'
     cmap = plt.get_cmap(cmapname)
-    colors = 255.0 * cmap(gap_sizes)
-    point_cloud = trimesh.points.PointCloud(vertices=hit_origins,
+    colors = 255.0 * cmap(norm_values)
+    colors[:, 3] = int(0.8 * 255)
+    point_cloud = trimesh.points.PointCloud(vertices=points,
                                             colors=colors)
     s.add_geometry(point_cloud)
-
     s.add_geometry(mesh)
     s.show()
 
@@ -96,20 +83,20 @@ def sample_evenly_and_show(mesh):
 if __name__ == "__main__":
     ## Single STL
     # mesh_path = paths.get_onshape_stl_path(185)
-    mesh_path = paths.get_thingiverse_stl_path(5561)
+    # mesh_path = paths.get_thingiverse_stl_path(5561)
     # mesh_path = 'stls/crane.stl'
-    mesh = trimesh.load(mesh_path)
+    # mesh = trimesh.load(mesh_path)
     # # mesh = trimesh_util.TRIMESH_TEST_MESH
     # show_sampled_gaps(mesh)
-    show_sampled_thickness(mesh)
+    # show_sampled_thickness(mesh)
 
-    # # ## Multi STL
-    # for i in range(20):
-    #     random_index = random.randint(0, 10000)
-    #     print(random_index)
-    #     mesh_path = paths.get_thingiverse_stl_path(random_index)
-    #     mesh = trimesh.load(mesh_path)
-    #     # show_sampled_thickness(mesh)
-    #     # sample_evenly_and_show(mesh)
-    #     show_sampled_gaps(mesh)
+    # ## Multi STL
+    for i in range(20):
+        random_index = random.randint(0, 10000)
+        print(random_index)
+        mesh_path = paths.get_thingiverse_stl_path(random_index)
+        mesh = trimesh.load(mesh_path)
+        # show_sampled_thickness(mesh)
+        # sample_evenly_and_show(mesh)
+        show_sampled_thickness(mesh)
 
