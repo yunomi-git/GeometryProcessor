@@ -21,6 +21,16 @@ def get_onshape_stl_path(i):
     # 162* struts simple
     # 165* struts opening with rib holes 2
     # 167* bike frame
+    # 267 3d Truss
+    # 117 thin trash bin
+    # 46 weird grooved screw
+    # 300 simple clamp
+    # 270 cat scooper
+    # 171* fan housing
+    # 233** Clamp and thin wall
+    # 168 weird complex clock motor
+    # 32 wheel
+    ## 197, 201, 94 missing
     return ONSHAPE_STL_PATH + "solid_" + str(i) + ".stl"
 
 def get_thingiverse_stl_path(i, get_by_order=True):

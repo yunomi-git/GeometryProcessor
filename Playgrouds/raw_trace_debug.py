@@ -1,6 +1,7 @@
 import trimesh
 import numpy as np
 import trimesh_util
+import paths
 
 def get_hit_for_facet(i, mesh, mesh_aux):
     hits = mesh.ray.intersects_location(ray_origins=mesh_aux.facet_centroids[np.newaxis, i, :],
@@ -15,8 +16,8 @@ def get_hit_for_facet(i, mesh, mesh_aux):
     return hits
 
 if __name__=="__main__":
-    # mesh_path = paths.get_onshape_stl_path(2)
-    mesh_path = '../stls/Antenna_DJI.stl'
+    mesh_path = paths.get_onshape_stl_path(5)
+    # mesh_path = '../stls/Antenna_DJI.stl'
     mesh = trimesh.load(mesh_path)
     # mesh = trimesh_util.TRIMESH_TEST_MESH
 
