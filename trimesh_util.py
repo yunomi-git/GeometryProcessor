@@ -21,6 +21,13 @@ class MeshAuxilliaryInfo:
         self.facet_normals = mesh.face_normals
         self.facet_areas = mesh.area_faces
         self.num_facets = len(self.facet_centroids)
+        self.facets = mesh.faces
+
+        self.edges = mesh.edges
+        self.num_edges = len(self.edges)
+
+        self.vertices = mesh.vertices
+        self.num_vertices = len(self.vertices)
 
     def sample_and_get_normals(self, count=50000):
         sample_points, face_index = trimesh.sample.sample_surface_even(mesh=self.mesh, count=count)
@@ -55,6 +62,13 @@ class MeshAuxilliaryInfo:
         distances = np.linalg.norm(hits - hit_origins, axis=1)
         gap_sizes = distances
         return hit_origins, gap_sizes
+
+    def get_vertices_of_facets(self, facet_indices):
+        # Get list of faces
+        facets = self.facets[facet_indices]
+        # convert to 1D and remove duplicates
+        vertices = set(facets.reshape(len(facets) * 3))
+        return vertices
 
     def calculate_thicknesses_facets(self):
         trimesh.repair.fix_normals(self.mesh, multibody=True)

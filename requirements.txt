@@ -1,10 +1,11 @@
-numpy==1.23.1
+numpy
 matplotlib
 scipy
 
 trimesh[all] # Nice plotter and manipulator. replaces numpy-stl and vtk
 
 zenodo_get
+bpy
 
 
 

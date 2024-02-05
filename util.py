@@ -26,3 +26,12 @@ def direction_to_color(direction):
 
 
 
+def get_indices_of_conditional(conditional_array):
+    size = len(conditional_array)
+    indices = np.arange(0, size)
+    return indices[conditional_array]
+
+if __name__=="__main__":
+    values = np.arange(0, 50)
+    lower_values = values < 25
+    print(get_indices_of_conditional(lower_values))

@@ -37,6 +37,7 @@ def get_thingiverse_stl_path(i, get_by_order=True):
     # 2664 chicken legs
     if get_by_order:
         contents = os.listdir(THINGIVERSE_STL_PATH)
+        print(contents[i])
         return THINGIVERSE_STL_PATH + contents[i]
     else:
         return THINGIVERSE_STL_PATH + str(i) + ".stl"
