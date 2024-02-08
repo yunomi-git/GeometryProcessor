@@ -9,6 +9,7 @@ ONSHAPE_STL_PATH = HOME_PATH + "/../Onshape_STL_Dataset/"
 THINGIVERSE_STL_PATH = HOME_PATH + "/../Thingiverse_STL_Dataset/"
 
 
+# Note: these are in inch and must be scaled!
 def get_onshape_stl_path(i):
     # 34 box with holes
     # 166* Gear intricate

@@ -34,11 +34,41 @@ class MeshAuxilliaryInfo:
         normals = self.facet_normals[face_index]
         return sample_points, normals
 
-    def calculate_thicknesses_samples(self, count=50000):
+    def calculate_overhangs_samples(self, cutoff_angle_rad=np.pi / 2.0, return_num_samples=False):
+        layer_height = 0.4
+        trimesh.repair.fix_normals(self.mesh, multibody=True)
+        samples, normals = self.sample_and_get_normals()
+        normals_z = normals[:, 2]
+        sample_angles = np.arcsin(normals_z)  #arcsin calculates overhang angles as < 0
+        samples_above_floor = samples[:, 2] > (layer_height + self.bound_lower[2])
+        overhang_indices = np.logical_and(sample_angles > -np.pi / 2.0, sample_angles < -cutoff_angle_rad)
+        overhang_indices = np.logical_and(overhang_indices, samples_above_floor)
+
+        overhang_samples = samples[overhang_indices]
+        overhang_angles = -sample_angles[overhang_indices]
+
+        if return_num_samples:
+            return overhang_samples, overhang_angles, len(samples)
+        else:
+            return overhang_samples, overhang_angles
+
+    def calculate_stairstep_samples(self, cutoff_angle_rad=np.pi / 2.0):
+        samples, normals = self.sample_and_get_normals()
+        sample_z = normals[:, 2]
+        sample_angles = np.arcsin(sample_z)  # overhang angles will be < 0
+        stairstep_indices = np.logical_and(sample_angles < np.pi / 2.0 * 0.99, sample_angles > cutoff_angle_rad)
+
+        stairstep_samples = samples[stairstep_indices]
+        stairstep_angles = sample_angles[stairstep_indices]
+
+        return stairstep_samples, stairstep_angles
+
+
+    def calculate_thicknesses_samples(self, count=50000, return_num_samples=False):
         trimesh.repair.fix_normals(self.mesh, multibody=True)
         origins, normals = self.sample_and_get_normals(count)
 
-        facet_offset = -normals * 0.001
+        facet_offset = -normals * 0.001  # This offset needs to be tuned based on stl dimensions
         hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=origins + facet_offset,
                                                                    ray_directions=-normals,
                                                                    multiple_hits=False)
@@ -48,9 +78,12 @@ class MeshAuxilliaryInfo:
 
         distances = np.linalg.norm(hits - hit_origins, axis=1)
         wall_thicknesses = distances
-        return hit_origins, wall_thicknesses
+        if return_num_samples:
+            return hit_origins, wall_thicknesses, len(tri_ids)
+        else:
+            return hit_origins, wall_thicknesses
 
-    def calculate_gap_samples(self, count=50000):
+    def calculate_gap_samples(self, count=50000, return_num_samples=False):
         trimesh.repair.fix_normals(self.mesh, multibody=True)
         origins, normals = self.sample_and_get_normals(count)
 
@@ -61,7 +94,11 @@ class MeshAuxilliaryInfo:
         hit_origins = origins[ray_ids]
         distances = np.linalg.norm(hits - hit_origins, axis=1)
         gap_sizes = distances
-        return hit_origins, gap_sizes
+
+        if return_num_samples:
+            return hit_origins, gap_sizes, len(tri_ids)
+        else:
+            return hit_origins, gap_sizes
 
     def get_vertices_of_facets(self, facet_indices):
         # Get list of faces

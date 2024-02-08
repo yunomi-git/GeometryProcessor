@@ -7,7 +7,7 @@ trimesh[all] # Nice plotter and manipulator. replaces numpy-stl and vtk
 zenodo_get
 bpy
 
-
+# For TextDeformer, need nvcc
 
 ## No longer used
 #numpy-stl # Default stl operation.
