@@ -52,7 +52,7 @@ class MeshAuxilliaryInfo:
         else:
             return overhang_samples, overhang_angles
 
-    def calculate_stairstep_samples(self, cutoff_angle_rad=np.pi / 2.0):
+    def calculate_stairstep_samples(self, cutoff_angle_rad=np.pi / 2.0, return_num_samples=False):
         samples, normals = self.sample_and_get_normals()
         sample_z = normals[:, 2]
         sample_angles = np.arcsin(sample_z)  # overhang angles will be < 0
@@ -61,7 +61,10 @@ class MeshAuxilliaryInfo:
         stairstep_samples = samples[stairstep_indices]
         stairstep_angles = sample_angles[stairstep_indices]
 
-        return stairstep_samples, stairstep_angles
+        if return_num_samples:
+            return stairstep_samples, stairstep_angles, len(samples)
+        else:
+            return stairstep_samples, stairstep_angles
 
 
     def calculate_thicknesses_samples(self, count=50000, return_num_samples=False):

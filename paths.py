@@ -36,6 +36,7 @@ def get_onshape_stl_path(i):
 
 def get_thingiverse_stl_path(i, get_by_order=True):
     # 2664 chicken legs
+    # 5743 face mug organic
     if get_by_order:
         contents = os.listdir(THINGIVERSE_STL_PATH)
         print(contents[i])
