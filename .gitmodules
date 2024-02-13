@@ -1,6 +1,6 @@
-[submodule "TextDeformer"]
-	path = TextDeformer
-	url = git@github.com:threedle/TextDeformer.git
-[submodule "text2mesh"]
-	path = text2mesh
-	url = git@github.com:threedle/text2mesh.git
+; [submodule "TextDeformer"]
+; 	path = TextDeformer
+; 	url = git@github.com:threedle/TextDeformer.git
+; [submodule "text2mesh"]
+; 	path = text2mesh
+; 	url = git@github.com:threedle/text2mesh.git

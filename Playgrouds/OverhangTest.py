@@ -37,8 +37,8 @@ def get_stairsteps(trimesh_aux: trimesh_util.MeshAuxilliaryInfo, cutoff_angle_ra
 
 if __name__ == "__main__":
     ## Single STL
-    mesh_path = paths.get_thingiverse_stl_path(7345)
-    # mesh_path = paths.HOME_PATH + 'stls/crane.stl'
+    # mesh_path = paths.get_thingiverse_stl_path(7345)
+    mesh_path = paths.HOME_PATH + 'stls/crane.stl'
     mesh = trimesh.load(mesh_path)
     # mesh = trimesh_util.TRIMESH_TEST_MESH
 

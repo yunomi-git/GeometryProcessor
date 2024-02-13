@@ -2,8 +2,6 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/TextDeformer" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/mistree" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/text2mesh" vcs="Git" />
   </component>
 </project>

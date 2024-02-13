@@ -34,8 +34,9 @@ class MeshAuxilliaryInfo:
         normals = self.facet_normals[face_index]
         return sample_points, normals
 
-    def calculate_overhangs_samples(self, cutoff_angle_rad=np.pi / 2.0, return_num_samples=False):
-        layer_height = 0.4
+    def calculate_overhangs_samples(self, cutoff_angle_rad=np.pi / 2.0,
+                                    layer_height=0.2,
+                                    return_num_samples=False):
         trimesh.repair.fix_normals(self.mesh, multibody=True)
         samples, normals = self.sample_and_get_normals()
         normals_z = normals[:, 2]
@@ -52,11 +53,11 @@ class MeshAuxilliaryInfo:
         else:
             return overhang_samples, overhang_angles
 
-    def calculate_stairstep_samples(self, cutoff_angle_rad=np.pi / 2.0, return_num_samples=False):
+    def calculate_stairstep_samples(self, min_angle_rad=np.pi / 4.0, max_angle_rad=np.pi / 2.0 * 0.95, return_num_samples=False):
         samples, normals = self.sample_and_get_normals()
         sample_z = normals[:, 2]
         sample_angles = np.arcsin(sample_z)  # overhang angles will be < 0
-        stairstep_indices = np.logical_and(sample_angles < np.pi / 2.0 * 0.99, sample_angles > cutoff_angle_rad)
+        stairstep_indices = np.logical_and(sample_angles < max_angle_rad, sample_angles > min_angle_rad)
 
         stairstep_samples = samples[stairstep_indices]
         stairstep_angles = sample_angles[stairstep_indices]

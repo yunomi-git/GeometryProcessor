@@ -3,6 +3,7 @@ matplotlib
 scipy
 
 trimesh[all] # Nice plotter and manipulator. replaces numpy-stl and vtk
+torch_geometry
 
 zenodo_get
 bpy
