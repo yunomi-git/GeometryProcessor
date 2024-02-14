@@ -5,6 +5,7 @@ __pycache__/
 *.csv
 .idea/**
 *.xml
+data/**
 
 # C extensions
 *.so

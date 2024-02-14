@@ -9,7 +9,7 @@ import util
 if __name__ == "__main__":
     # Single STL
     # mesh_path = paths.get_onshape_stl_path(233)
-    mesh_path = paths.get_thingiverse_stl_path(222, get_by_order=False)
+    mesh_path = paths.get_thingiverse_stl_path(258, get_by_order=True)
     # mesh_path = 'stls/crane.stl'
     mesh = trimesh.load(mesh_path)
     # mesh = trimesh_util.TRIMESH_TEST_MESH

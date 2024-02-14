@@ -10,9 +10,24 @@ TRIMESH_TEST_MESH = trimesh.Trimesh(vertices=np.array([[0.0, 1, 0.0], [1, 0.0, 0
                                     faces=np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]]))
 NO_GAP_VALUE = -1
 
+def mesh_is_valid(mesh):
+    if not isinstance(mesh, trimesh.Trimesh):
+        return False
+
+    if mesh.bounds is None:
+        return False
+
+    return True
+
 class MeshAuxilliaryInfo:
     def __init__(self, mesh):
+        self.is_valid = mesh_is_valid(mesh)
+        if not self.is_valid:
+            return
+
+        trimesh.repair.fix_normals(mesh, multibody=True)
         self.mesh = mesh
+
         self.bound_lower = mesh.bounds[0, :].copy()
         self.bound_upper = mesh.bounds[1, :].copy()
         self.bound_length = self.bound_upper - self.bound_lower
@@ -78,7 +93,7 @@ class MeshAuxilliaryInfo:
                                                                    multiple_hits=False)
 
         hit_origins = origins[ray_ids]
-        print("hits", len(hit_origins))
+        # print("hits", len(hit_origins))
 
         distances = np.linalg.norm(hits - hit_origins, axis=1)
         wall_thicknesses = distances

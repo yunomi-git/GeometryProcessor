@@ -5,7 +5,7 @@ if __name__=="__main__":
     # attach to logger so trimesh messages will be printed to console
     trimesh.util.attach_to_log()
 
-    # some formats represent multiple meshes with multiple instances
+    # some formats represent multiple mesh with multiple instances
     # the loader tries to return the datatype which makes the most sense
     # which will for scene-like files will return a `trimesh.Scene` object.
     # if you *always* want a straight `trimesh.Trimesh` you can ask the

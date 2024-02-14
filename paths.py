@@ -5,12 +5,12 @@ import os
 # import torch
 
 HOME_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
-ONSHAPE_STL_PATH = HOME_PATH + "/../Onshape_STL_Dataset/"
-THINGIVERSE_STL_PATH = HOME_PATH + "/../Thingiverse_STL_Dataset/"
+ONSHAPE_STL_PATH = HOME_PATH + "../Onshape_STL_Dataset/"
+THINGIVERSE_STL_PATH = HOME_PATH + "../Thingiverse_STL_Dataset/"
 
 
 # Note: these are in inch and must be scaled!
-def get_onshape_stl_path(i):
+def get_onshape_stl_path(i, get_by_order=False):
     # 34 box with holes
     # 166* Gear intricate
     # 177 hollow interior
@@ -31,8 +31,13 @@ def get_onshape_stl_path(i):
     # 233** Clamp and thin wall
     # 168 weird complex clock motor
     # 32 wheel
-    ## 197, 201, 94 missing
-    return ONSHAPE_STL_PATH + "solid_" + str(i) + ".stl"
+    ## 197, 201, 94, 82 missing
+    if get_by_order:
+        contents = os.listdir(ONSHAPE_STL_PATH)
+        # print(contents[i])
+        return ONSHAPE_STL_PATH + contents[i]
+    else:
+        return ONSHAPE_STL_PATH + "solid_" + str(i) + ".stl"
 
 def get_thingiverse_stl_path(i, get_by_order=True):
     # 2664 chicken legs
