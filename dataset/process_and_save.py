@@ -9,7 +9,7 @@ import printability_metrics
 from tqdm import tqdm
 import json
 
-def calculate_mesh_info(mesh, mesh_save_name):
+def calculate_mesh_info(mesh, mesh_relative_path):
     mesh_aux = MeshAuxilliaryInfo(mesh)
 
     # Only take the largest body in a mesh
@@ -41,7 +41,7 @@ def calculate_mesh_info(mesh, mesh_save_name):
             "p": 0.0,
             "y": 0.0
         },
-        "mesh_location": mesh_save_name
+        "mesh_relative_path": mesh_relative_path
     }
     return data, mesh
 
@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
         base_name = prefix + "_" + "mesh" + str(i)
         save_data_path = data_path + base_name + ".json"
-        save_mesh_path = data_path + "mesh/" + base_name + ".stl"
+        save_mesh_relative_path = "mesh/" + base_name + ".stl"
 
         mesh = trimesh.load(mesh_path, force='mesh')
 
@@ -78,8 +78,8 @@ if __name__ == "__main__":
             continue
 
         mesh.apply_scale(mesh_scale)
-        mesh_info, mesh_to_save = calculate_mesh_info(mesh, save_mesh_path)
-        mesh_to_save.export(save_mesh_path, file_type="stl")
+        mesh_info, mesh_to_save = calculate_mesh_info(mesh, save_mesh_relative_path)
+        mesh_to_save.export(data_path + save_mesh_relative_path, file_type="stl")
         with open(save_data_path, 'w') as f:
             json.dump(mesh_info, f)
 
