@@ -4,7 +4,7 @@ import trimesh_util
 import numpy as np
 import paths
 import random
-from stopwatch import Stopwatch
+from util import Stopwatch
 import pandas as pd
 
 def save(points, values, filename):

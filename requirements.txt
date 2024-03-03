@@ -1,35 +1,25 @@
-numpy
+numpy==1.24 # for pymesh testing. but can also just remove the testing line int __init__
 matplotlib
-scipy
+scipy #
 
 trimesh[all] # Nice plotter and manipulator. replaces numpy-stl and vtk
-torch_geometry
+#torch_geometry
+seaborn==0.11.0 # from numpy requirements from pymesh
+
+# for diffusion_net
+potpourri3d
+scikit-learn
+robust-laplacian
 
 zenodo_get
 bpy
 
-# For TextDeformer, need nvcc
+# for dgcnn
+# h5py
 
-## No longer used
-#numpy-stl # Default stl operation.
-#vtkplotlib # Nice plotter
-
-#pc-skeletor # 3d skeleton 1
-    # "gcc not found": install build-essential
-    # mistree unrecognized ‘-mavx512fp16’:
-        # install mistree from source.
-        # Install fortran: gfortran
-        # run python setup.py build --cpu-dispatch="max -avx512_spr" bdist
-    # Requires numpy==1.23.1
-
-#skeletor # 3d skeleton 2
-#pyglet
-
-# clone matfp from source
-    # Install homebrew
-    # To use gmp correctly, sudo apt-get install libmpfr-dev libgmp-dev libboost-all-dev
-    # To use X11 correctly, install xorg-dev
-    # To use glut, install freeglut3-dev
-    # add #include <bitset> to Triangulation.cpp
-    # add #include <bitset> to LFS.cpp
-
+# Flexicubes
+# pip3 install torch==2.1.0 torchvision==0.16.0 torchaudio --index-url https://download.pytorch.org/whl/cu118
+# pip install kaolin==0.15.0 -f https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.1.0_cu118.html
+# pip install torch-scatter -f https://data.pyg.org/whl/torch-2.1.0+cu118.html
+#pip install imageio trimesh tqdm matplotlib  ninja
+#pip install git+https://github.com/NVlabs/nvdiffrast/

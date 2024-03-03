@@ -6,8 +6,10 @@ import os
 
 HOME_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
 ONSHAPE_STL_PATH = HOME_PATH + "../Onshape_STL_Dataset/"
-THINGIVERSE_STL_PATH = HOME_PATH + "../Thingiverse_STL_Dataset/"
+# THINGIVERSE_STL_PATH = HOME_PATH + "../Thingiverse_STL_Dataset/"
+THINGIVERSE_STL_PATH = HOME_PATH + "../Dataset_Thingiverse_10k/"
 
+TRAINING_DATA_PATH = HOME_PATH + "data/"
 
 # Note: these are in inch and must be scaled!
 def get_onshape_stl_path(i, get_by_order=False):
@@ -42,9 +44,10 @@ def get_onshape_stl_path(i, get_by_order=False):
 def get_thingiverse_stl_path(i, get_by_order=True):
     # 2664 chicken legs
     # 5743 face mug organic
+    # 4820 order, polar bear
     if get_by_order:
         contents = os.listdir(THINGIVERSE_STL_PATH)
-        print(contents[i])
+        # print(contents[i])
         return THINGIVERSE_STL_PATH + contents[i]
     else:
         return THINGIVERSE_STL_PATH + str(i) + ".stl"

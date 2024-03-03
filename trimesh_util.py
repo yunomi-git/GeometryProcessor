@@ -1,9 +1,10 @@
 import trimesh
 import numpy as np
-from stopwatch import Stopwatch
+from util import Stopwatch
 from tqdm import tqdm
 import util
 import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation as R
 
 
 TRIMESH_TEST_MESH = trimesh.Trimesh(vertices=np.array([[0.0, 1, 0.0], [1, 0.0, 0.0], [0, 0, 0], [0.0, 0.01, 1]]),
@@ -157,6 +158,22 @@ class MeshAuxilliaryInfo:
         gap_sizes = np.ones(num_facets) * NO_GAP_VALUE
         gap_sizes[tri_ids] = distances
         return gap_sizes
+
+    def get_transformed_mesh(self, scale=1.0, orientation=np.array([0, 0, 0])):
+        return MeshAuxilliaryInfo(get_transformed_mesh(self.mesh, scale=scale, orientation=orientation))
+
+def get_transformed_mesh(mesh: trimesh.Trimesh, scale=1.0, orientation=np.array([0, 0, 0])):
+    # orientation as [x, y, z]
+    r = R.from_euler('zyx', [orientation[2], orientation[1], orientation[0]]).as_matrix()
+    rot_matrix = np.zeros((4, 4))
+    rot_matrix[:3, :3] = r
+    rot_matrix[3, 3] = 1.0
+    scale_matrix = np.diag([scale, scale, scale, 1.0])
+
+    transform_matrix = np.matmul(scale_matrix, rot_matrix)
+    mesh_copy = mesh.copy()
+    mesh_copy.apply_transform(transform_matrix)
+    return mesh_copy
 
 def show_sampled_values(mesh, points, values, normalize=True):
     s = trimesh.Scene()

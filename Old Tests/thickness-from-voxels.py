@@ -1,7 +1,7 @@
 import trimesh
 import numpy as np
 import time
-from stopwatch import Stopwatch
+from util import Stopwatch
 import trimesh_util
 import paths
  # https://towardsdatascience.com/how-to-voxelize-meshes-and-point-clouds-in-python-ca94d403f81d

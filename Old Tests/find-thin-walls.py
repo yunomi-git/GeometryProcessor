@@ -15,7 +15,7 @@ if __name__ == "__main__":
     normals = mesh_to_analyze.normals
     areas = mesh_to_analyze.areas
     characteristic_radii = np.sqrt(areas / np.pi)
-    num_facets = len(mesh_to_analyze.data)
+    num_facets = len(mesh_to_analyze.point_clouds)
 
     is_thin_vector = np.empty(num_facets)
     wall_thicknesses = np.empty(num_facets)

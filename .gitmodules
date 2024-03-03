@@ -4,3 +4,15 @@
 ; [submodule "text2mesh"]
 ; 	path = text2mesh
 ; 	url = git@github.com:threedle/text2mesh.git
+[submodule "diffusion-net"]
+	path = diffusion-net
+	url = git@github.com:nmwsharp/diffusion-net.git
+[submodule "PyMesh"]
+	path = PyMesh
+	url = https://github.com/PyMesh/PyMesh.git
+[submodule "FlexiCubes"]
+	path = FlexiCubes
+	url = git@github.com:nv-tlabs/FlexiCubes.git
+[submodule "dgcnn"]
+	path = dgcnn
+	url = git@github.com:WangYueFt/dgcnn.git

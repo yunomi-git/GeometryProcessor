@@ -57,14 +57,15 @@ def get_stairstep_printability(mesh_aux: trimesh_util.MeshAuxilliaryInfo):
 
 if __name__ == "__main__":
     ## Single STL
-    # mesh_path = paths.get_thingiverse_stl_path(5743)
+    # mesh_path = paths.get_onshape_stl_path(20)
+    # mesh_path = paths.get_thingiverse_stl_path(827, get_by_order=True)
     mesh_path = paths.HOME_PATH + 'stls/crane.stl'
     mesh = trimesh.load(mesh_path)
     # mesh = trimesh_util.TRIMESH_TEST_MESH
 
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
     # points, values = mesh_aux.calculate_stairstep_samples(cutoff_angle_rad=np.pi/4)
-    points, values, normalized_score = get_overhang_printability(mesh_aux)
+    points, values, normalized_score = get_stairstep_printability(mesh_aux)
     print(1-normalized_score)
 
     # points, values = mesh_aux.calculate_thicknesses_samples()
