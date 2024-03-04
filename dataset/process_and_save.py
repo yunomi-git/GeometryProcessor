@@ -51,6 +51,16 @@ class MeshDatasetFileManager:
                           for file in os.listdir(target_directory)
                           if os.path.isfile(os.path.join(target_directory, file)))
         return data_files
+
+    def get_mesh_and_instances_from_target_file(self, target_path_absolute):
+        with open(target_path_absolute, 'r') as f:
+            target_master = json.load(f)
+        mesh_path = self.root_dir + target_master["mesh_relative_path"]
+        mesh = trimesh.load(mesh_path, force="mesh")
+
+        instances = target_master["instances"]
+        return mesh, instances
+
     def load_base_mesh_from_target(self, target_path_absolute):
         with open(target_path_absolute, 'r') as f:
             target = json.load(f)
@@ -67,7 +77,7 @@ def get_augmented_mesh(mesh: trimesh.Trimesh, augmentations):
     # "scale":
     ###
     orientation = augmentations["orientation"]
-    eulers = [orientation["z"], orientation["y"], orientation["x"]]
+    eulers = [orientation["x"], orientation["y"], orientation["z"]]
     scale = augmentations["scale"]
 
     transformed_mesh = trimesh_util.get_transformed_mesh(mesh, scale=scale, orientation=eulers)
@@ -208,9 +218,9 @@ if __name__ == "__main__":
     # quick_edit(paths.HOME_PATH + "data_augmentations/")
     # 1/0
     # Generation Parameters
-    do_generate_base_dataset = False
-    if do_generate_base_dataset:
-        use_onshape = True
+    mode = "add_augmentations" # generate_initial, add_augmentations, both
+    if mode == "generate_initial" or mode == "both":
+        use_onshape = False
         source_mesh_filenames = []
         if use_onshape:
             min_range = 0
@@ -226,15 +236,12 @@ if __name__ == "__main__":
             prefix = "thing"
             for i in range(min_range, max_range):
                 source_mesh_filenames.append(paths.get_thingiverse_stl_path(i, get_by_order=True))
-    else:
+    if mode == "add_augmentations" or mode == "both":
         only_add_augmentations = False
         add_basic_augmentations = True
         num_extra_augmentations = 5
     overwrite = False
     outputs_save_path = paths.HOME_PATH + "data_augmentations/"
-
-
-
 
     # Setup data path
     mesh_file_manager = MeshDatasetFileManager(root_dir=outputs_save_path)
@@ -242,12 +249,12 @@ if __name__ == "__main__":
     Path(mesh_file_manager.get_target_path(absolute=True)).mkdir(parents=True, exist_ok=True)
 
 
-    if do_generate_base_dataset:
+    if mode == "generate_initial" or mode == "both":
         generate_base_dataset(data_root_dir=outputs_save_path,
                               source_mesh_filenames=source_mesh_filenames,
                               save_prefix=prefix,
                               mesh_scale=mesh_scale)
-    else:
+    if mode == "add_augmentations" or mode == "both":
         augmentation_list = []
         augmentations = {
             "orientation": {

@@ -50,7 +50,7 @@ class MeshAuxilliaryInfo:
         normals = self.facet_normals[face_index]
         return sample_points, normals
 
-    def calculate_overhangs_samples(self, cutoff_angle_rad=np.pi / 2.0,
+    def calculate_overhangs_samples(self, cutoff_angle_rad=np.pi / 4.0,
                                     layer_height=0.2,
                                     return_num_samples=False):
         trimesh.repair.fix_normals(self.mesh, multibody=True)
@@ -177,17 +177,17 @@ def get_transformed_mesh(mesh: trimesh.Trimesh, scale=1.0, orientation=np.array(
 
 def show_sampled_values(mesh, points, values, normalize=True):
     s = trimesh.Scene()
+    if len(points) > 0:
+        if normalize:
+            values = util.normalize_minmax_01(values)
 
-    if normalize:
-        values = util.normalize_minmax_01(values)
-
-    cmapname = 'jet'
-    cmap = plt.get_cmap(cmapname)
-    colors = 255.0 * cmap(values)
-    colors[:, 3] = int(0.8 * 255)
-    point_cloud = trimesh.points.PointCloud(vertices=points,
-                                            colors=colors)
-    s.add_geometry(point_cloud)
+        cmapname = 'jet'
+        cmap = plt.get_cmap(cmapname)
+        colors = 255.0 * cmap(values)
+        colors[:, 3] = int(0.8 * 255)
+        point_cloud = trimesh.points.PointCloud(vertices=points,
+                                                colors=colors)
+        s.add_geometry(point_cloud)
     s.add_geometry(mesh)
     s.show()
 
