@@ -16,3 +16,9 @@
 [submodule "dgcnn"]
 	path = dgcnn
 	url = git@github.com:WangYueFt/dgcnn.git
+[submodule "MeshCNN"]
+	path = MeshCNN
+	url = https://github.com/ranahanocka/MeshCNN.git
+[submodule "pointMLP-pytorch"]
+	path = pointMLP-pytorch
+	url = https://github.com/ma-xu/pointMLP-pytorch.git

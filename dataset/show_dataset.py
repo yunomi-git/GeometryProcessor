@@ -15,25 +15,30 @@ if __name__ == "__main__":
         # Single STL
         # mesh_path = paths.get_onshape_stl_path(233)
         # mesh_path = paths.get_thingiverse_stl_path(258, get_by_order=True)
-        mesh_path = paths.HOME_PATH + 'stls/crane.stl'
+        mesh_path = paths.HOME_PATH + 'stls/low-res.stl'
         mesh = trimesh.load(mesh_path)
-        # mesh = trimesh_util.TRIMESH_TEST_MESH
-        trimesh_util.show_mesh(mesh)
+        # trimesh_util.show_mesh(mesh)
+        #
+        # augmentations = {
+        #     "orientation": {
+        #         "x": 0.0,
+        #         "y": np.pi/2,
+        #         "z": 0.0
+        #     },
+        #     "scale": 1
+        # }
+        #
+        # mesh = get_augmented_mesh(mesh, augmentations)
+        # trimesh_util.show_mesh(mesh)
 
-        augmentations = {
-            "orientation": {
-                "x": 0.0,
-                "y": np.pi/2,
-                "z": 0.0
-            },
-            "scale": 1
-        }
-
-        mesh = get_augmented_mesh(mesh, augmentations)
-        trimesh_util.show_mesh(mesh)
+        ## Normals
+        # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+        # points, normals = mesh_aux.sample_and_get_normals(count=5000, even=False, area_weight=False)
+        # trimesh_util.show_mesh_with_normals(mesh, points, normals)
 
         ## Samples
-        # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+        mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+        points, values = mesh_aux.calculate_curvature_samples(use_gaussian=True, count=10000)
         # points, values = mesh_aux.calculate_gap_samples()
 
         # points, values = mesh_aux.calculate_thicknesses_samples()
@@ -42,7 +47,7 @@ if __name__ == "__main__":
 
         # points, values = mesh_aux.calculate_overhangs_samples()
         #
-        # trimesh_util.show_sampled_values(mesh, points, values)
+        trimesh_util.show_sampled_values(mesh, points, values)
     else:
         file_manager = MeshDatasetFileManager(paths.HOME_PATH + "data2/")
         mesh_paths = file_manager.get_mesh_files(absolute=True)

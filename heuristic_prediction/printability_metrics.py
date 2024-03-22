@@ -47,9 +47,10 @@ def get_gap_printability(mesh_aux: trimesh_util.MeshAuxilliaryInfo,
 
 
 def get_overhang_printability(mesh_aux: trimesh_util.MeshAuxilliaryInfo,
-                              minimum_angle=np.pi/4):
+                              minimum_angle=np.pi/4,
+                              layer_height=0.2):
     maximum_angle = np.pi/2
-    points, angles, num_samples = mesh_aux.calculate_overhangs_samples(cutoff_angle_rad=minimum_angle, return_num_samples=True)
+    points, angles, num_samples = mesh_aux.calculate_overhangs_samples(cutoff_angle_rad=minimum_angle, return_num_samples=True, layer_height=layer_height)
     violating_angles = angles[angles > minimum_angle]
     violating_angles[violating_angles > maximum_angle] = maximum_angle
     violation_scores = np.square((violating_angles - minimum_angle) / (minimum_angle - maximum_angle))
@@ -76,7 +77,7 @@ if __name__ == "__main__":
     ## Single STL
     # mesh_path = paths.get_thingiverse_stl_path(5743)
     # mesh_path = paths.HOME_PATH + 'stls/crane.stl'
-    mesh_path = paths.TRAINING_DATA_PATH + "mesh/onshape_mesh202.stl"
+    mesh_path = paths.DATA_PATH + "mesh/onshape_mesh202.stl"
     mesh = trimesh.load(mesh_path)
     # mesh = trimesh_util.TRIMESH_TEST_MESH
 

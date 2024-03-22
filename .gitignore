@@ -6,7 +6,11 @@ __pycache__/
 .idea/**
 **.xml
 **.iml
-data/**
+data/*
+data_th5k_aug/*
+.idea/*
+
+**/checkpoints/**
 
 # C extensions
 *.so

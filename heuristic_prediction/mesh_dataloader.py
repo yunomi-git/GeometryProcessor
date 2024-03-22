@@ -1,65 +1,19 @@
-import shutil
-import os
-import sys
-import random
 import numpy as np
 import json
 import math
 import trimesh
-import trimesh_util
 
-import paths
 import torch
 from torch.utils.data import Dataset
 
 import potpourri3d as pp3d
 
 import diffusion_net
-from diffusion_net.utils import toNP
 from tqdm import tqdm
 
 from dataset.process_and_save import MeshDatasetFileManager, get_augmented_mesh
-import dgcnn_net.data as dgcnn_data
 
 
-class CachedMeshList:
-    def init(self, data_root_dir, preprocessed=False):
-        # Preprocess: was this information already saved
-        # store in memory
-        self.verts_list = []
-        self.faces_list = []
-        self.outputs_list = []
-
-        # Open the base directory and get the contents
-        file_manager = MeshDatasetFileManager(data_root_dir)
-        data_files = file_manager.get_target_files(absolute=True)
-
-        # Now parse through all the files
-        for data_file in tqdm(data_files):
-            # print(data_file)
-            # Load the file
-            file_path = data_file
-            with open(file_path, 'r') as f:
-                mesh_data = json.load(f)
-
-            # if mesh_data["vertices"] > 1e4:
-            #     continue
-            if mesh_data["vertices"] < 1e2:
-                continue
-            if math.isnan(mesh_data["thickness_violation"]):
-                continue
-            mesh_path = data_root_dir + mesh_data["mesh_relative_path"]
-
-            verts, faces = pp3d.read_mesh(mesh_path)
-            verts = torch.tensor(verts).float()
-            faces = torch.tensor(faces)
-
-            # center and unit scale
-            # verts = diffusion_net.geometry.normalize_positions(verts)
-
-            self.verts_list.append(verts)
-            self.faces_list.append(faces)
-            self.outputs_list.append(mesh_data)
 
 
 class DiffusionNetDataset(Dataset):
@@ -129,46 +83,85 @@ class DiffusionNetDataset(Dataset):
         return verts, faces, frames, mass, L, evals, evecs, gradX, gradY, mesh_data
 
 
-class DGCNNDataSet(Dataset):
-    def __init__(self, data_root_dir, num_points, partition='train', filter_criteria=None, use_augmentations=True):
-        # filter_invalid of the form filter_invalid(mesh, instance_data)->boolean
+def load_point_clouds_numpy(data_root_dir, num_points, label_names, filter_criteria=None, data_fraction=1.0):
+    file_manager = MeshDatasetFileManager(data_root_dir)
+    clouds, targets = file_manager.load_numpy_pointclouds(num_points, desired_label_names=label_names)
+    p = np.random.permutation(len(clouds))
+    clouds = clouds[p]
+    targets = targets[p]
+    num_files = len(clouds)
+    num_file_to_use = int(data_fraction * num_files)
 
-        self.file_manager = MeshDatasetFileManager(data_root_dir)
-        self.root_dir = data_root_dir
-        all_point_clouds = []
-        all_label = []
+    print("Total number of point clouds processed: ", num_file_to_use)
+    return clouds[:num_file_to_use, :, :], targets[:num_file_to_use, :]
 
-        # Open the base directory and get the contents
-        data_files = self.file_manager.get_target_files(absolute=True)
+def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_criteria=None, use_augmentations=True, data_fraction=1.0):
+    file_manager = MeshDatasetFileManager(data_root_dir)
+    all_point_clouds = []
+    all_label = []
+    label_names = label_names
 
-        # Now parse through all the files
-        for data_file in tqdm(data_files):
-            # Load the file
-            mesh, instances = self.file_manager.get_mesh_and_instances_from_target_file(data_file)
-            if not use_augmentations:
-                instances = [instances[0]] # Only take the default instance
+    # Open the base directory and get the contents
+    data_files = file_manager.get_target_files(absolute=True)
+    num_files = len(data_files)
+    num_file_to_use = int(data_fraction * num_files)
+    data_files = np.random.choice(data_files, size=num_file_to_use, replace=False)
 
-            for instance_data in instances:
-                if not filter_criteria(mesh, instance_data):
-                    continue
+    # Now parse through all the files
+    for data_file in tqdm(data_files):
+        # Load the file
+        mesh, instances = file_manager.get_mesh_and_instances_from_target_file(data_file)
+        if not use_augmentations:
+            instances = [instances[0]]  # Only take the default instance
 
+        for instance_data in instances:
+            if not filter_criteria(mesh, instance_data):
+                continue
 
-                mesh = get_augmented_mesh(mesh, instance_data)
-                mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-                vertices, _ = trimesh.sample.sample_surface(mesh, count=8192)
+            mesh = get_augmented_mesh(mesh, instance_data)
+            vertices, _ = trimesh.sample.sample_surface(mesh, count=num_points)
 
-                # For label, only take the 4 metrics.
-                # Overhang, Stairstep, Thicknesses, Gaps,
-                label = np.array([instance_data["overhang_violation"],
-                                  instance_data["stairstep_violation"],
-                                  instance_data["thickness_violation"],
-                                  instance_data["gap_violation"]])
+            label = np.array([instance_data[label_name] for label_name in label_names])
+            # if "centroid" in label_names:
+            #     label = np.concatenate((np.mean(vertices, axis=0), )
 
-                all_point_clouds.append(vertices)
-                all_label.append(label)
+            all_point_clouds.append(vertices)
+            all_label.append(label)
 
-        self.point_clouds = np.stack(all_point_clouds, axis=0).astype('float32')
-        self.label = np.stack(all_label, axis=0).astype('float32')
+    print("Total number of point clouds processed: ", len(all_point_clouds))
+    point_clouds = np.stack(all_point_clouds, axis=0).astype('float32')
+    label = np.stack(all_label, axis=0).astype('float32')
+
+    return point_clouds, label
+
+class PointCloudDataset(Dataset):
+    def __init__(self, data_root_dir, num_points, label_names, partition='train', filter_criteria=None, use_augmentations=True, data_fraction=1.0, use_numpy=True, normalize=False):
+        # filter_criteria of the form filter_criteria(mesh, instance_data)->boolean
+        if use_numpy:
+            print("Loading data from numpy...")
+            if use_augmentations:
+                print("Warning: augmentations are not being used")
+            if filter_criteria is not None:
+                    print("Warning: filters are not being used")
+            if normalize:
+                print("Note: Data is being normalized")
+            self.point_clouds, self.label = load_point_clouds_numpy(data_root_dir=data_root_dir,
+                                                                    num_points=2 * num_points,
+                                                                    label_names=label_names,
+                                                                    data_fraction=data_fraction)
+        else:
+            self.point_clouds, self.label = load_point_clouds_manual(data_root_dir=data_root_dir,
+                                                                     num_points=2 * num_points,
+                                                                     label_names=label_names,
+                                                                     data_fraction=data_fraction,
+                                                                     filter_criteria=filter_criteria,
+                                                                     use_augmentations=use_augmentations)
+        # Normalize each target
+        if normalize:
+            std = np.std(self.label, axis=0)
+            mean = np.mean(self.label, axis=0)
+            self.label = (self.label - mean) / std
+
         self.num_points = num_points
         self.partition = partition
 

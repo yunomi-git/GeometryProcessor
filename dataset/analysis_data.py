@@ -20,7 +20,7 @@ if __name__ == "__main__":
     metrics = util.DictionaryList()
 
 
-    data_root_dir = paths.HOME_PATH + "data_augmentations/"
+    data_root_dir = paths.HOME_PATH + "data_th5k_aug/"
     data_manager = MeshDatasetFileManager(data_root_dir)
     data_files =  data_manager.get_target_files(absolute=True)
     for data_file in tqdm(data_files):
@@ -30,8 +30,8 @@ if __name__ == "__main__":
         with open(file_path, 'r') as f:
             mesh_data_master = json.load(f)
         for mesh_data in mesh_data_master["instances"]:
-            if mesh_data["scale"] > 1000:
-                continue
+            # if mesh_data["scale"] > 1000:
+            #     continue
             # if mesh_data["vertices"] > 1e6:
             #     continue
             # if mesh_data["vertices"] < 1e2:
@@ -47,15 +47,15 @@ if __name__ == "__main__":
             # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
             # points, values = mesh_aux.calculate_overhangs_samples()
             # trimesh_util.show_sampled_values(mesh, points=points, values=values)
-            if math.isnan(mesh_data["thickness_violation"]):
-                continue
+            # if math.isnan(mesh_data["thickness_violation"]):
+            #     continue
             metrics.add_element(mesh_data)
 
     data = pd.DataFrame(data=metrics.master_list)
 
     sns.histplot(data=data, x="vertices", log_scale=True)
     plt.show()
-    sns.histplot(data=data, x="scale", log_scale=True)
+    sns.histplot(data=data, x="bound_length", log_scale=True)
     plt.show()
     sns.histplot(data=data, x="volume", log_scale=True)
     plt.show()

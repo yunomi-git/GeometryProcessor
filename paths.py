@@ -9,7 +9,7 @@ ONSHAPE_STL_PATH = HOME_PATH + "../Onshape_STL_Dataset/"
 # THINGIVERSE_STL_PATH = HOME_PATH + "../Thingiverse_STL_Dataset/"
 THINGIVERSE_STL_PATH = HOME_PATH + "../Dataset_Thingiverse_10k/"
 
-TRAINING_DATA_PATH = HOME_PATH + "data/"
+DATA_PATH = HOME_PATH + "data/"
 
 # Note: these are in inch and must be scaled!
 def get_onshape_stl_path(i, get_by_order=False):
@@ -36,6 +36,7 @@ def get_onshape_stl_path(i, get_by_order=False):
     ## 197, 201, 94, 82 missing
     if get_by_order:
         contents = os.listdir(ONSHAPE_STL_PATH)
+        contents.sort()
         # print(contents[i])
         return ONSHAPE_STL_PATH + contents[i]
     else:
@@ -47,6 +48,7 @@ def get_thingiverse_stl_path(i, get_by_order=True):
     # 4820 order, polar bear
     if get_by_order:
         contents = os.listdir(THINGIVERSE_STL_PATH)
+        contents.sort()
         # print(contents[i])
         return THINGIVERSE_STL_PATH + contents[i]
     else:

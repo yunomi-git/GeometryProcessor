@@ -13,6 +13,11 @@ robust-laplacian
 
 zenodo_get
 bpy
+lightning
+#
+# ln -s diffusion-net/src/diffusion_net diffusion_net
+# ln -s dgcnn/pytorch dgcnn_net
+# ln -s PyMesh/python/pymesh pymesh
 
 # for dgcnn
 # h5py
