@@ -3,12 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.csv
-.idea/**
 **.xml
 **.iml
 data/*
 data_th5k_aug/*
-.idea/*
+**/.idea/*
 
 **/checkpoints/**
 

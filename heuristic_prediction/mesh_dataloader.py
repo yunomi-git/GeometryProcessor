@@ -158,9 +158,23 @@ class PointCloudDataset(Dataset):
                                                                      use_augmentations=use_augmentations)
         # Normalize each target
         if normalize:
-            std = np.std(self.label, axis=0)
-            mean = np.mean(self.label, axis=0)
-            self.label = (self.label - mean) / std
+            # std = np.std(self.label, axis=0)
+            # mean = np.mean(self.label, axis=0)
+            # self.label = (self.label - mean) / std
+
+            # Normalize inputs
+            # First get bounding boxes
+            bound_max = np.max(self.point_clouds, axis=1)
+            bound_min = np.min(self.point_clouds, axis=1)
+            bound_length = np.max(bound_max - bound_min, axis=1) # maximum length
+            # scale to box of 0, 1
+            self.normalization_scale = 1.0/bound_length
+            normalization_scale_multiplier = np.repeat(self.normalization_scale[:, np.newaxis], len(self.point_clouds[0]), axis=1)
+            normalization_scale_multiplier = np.repeat(normalization_scale_multiplier[:, :, np.newaxis], 3, axis=2)
+            self.normalization_order = 1
+            self.point_clouds = normalization_scale_multiplier * self.point_clouds
+            self.label = self.label * np.repeat(np.power(self.normalization_scale, self.normalization_order)[:, np.newaxis], len(self.label[0]), axis=1)
+
 
         self.num_points = num_points
         self.partition = partition

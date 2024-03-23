@@ -40,6 +40,7 @@ class RegressionTools:
                                 util.get_date_name() + "_" + args['exp_name'] + "/")
         print("Saving checkpoints to: ", self.checkpoint_path)
         self.io = self.create_checkpoints(args)
+        self.gradient_accumulation_steps = args["grad_acc_steps"]
 
 
     def create_checkpoints(self, args):
@@ -76,6 +77,7 @@ class RegressionTools:
             train_pred = []
             train_true = []
             with torch.enable_grad():
+                step = 0
                 for data, label in tqdm(self.train_loader):
                     data, label = data.to(self.device), label.to(self.device)
                     data = data.permute(0, 2, 1) # so, the input data shape is [batch, 3, 1024]
@@ -90,6 +92,8 @@ class RegressionTools:
                         print("nan found in preds")
                     if self.clip_parameters:
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
+
+                    # if step % self.gradient_accumulation_steps == 0:
                     self.opt.step()
 
                     batch_size = data.size()[0]
@@ -97,6 +101,7 @@ class RegressionTools:
                     train_loss += loss.item() * batch_size
                     train_true.append(label.cpu().numpy())
                     train_pred.append(logits.detach().cpu().numpy())
+                    step += 1
 
             if self.scheduler is not None:
                 self.scheduler.step()
