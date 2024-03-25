@@ -48,18 +48,18 @@ args = {
     "label_names": label_names,
 
     # Dataset Param
-    "data_fraction": 0.03,
+    "data_fraction": 0.3,
     "data_fraction_test": 0.15,
     "workers": 24,
-    "grad_acc_steps": 1,
+    "grad_acc_steps": 2,
     "normalize_inputs": True,
 
     # Opt Param
     "batch_size": 16,
     "test_batch_size": 8,
-    "epochs": 100,
-    "lr": 1e-1,
-    "min_lr": 5e-3,
+    "epochs": 30,
+    "lr": 1e-2,
+    "min_lr": 5e-5,
     "weight_decay": 1e-4,
     "seed": 1,
 }
@@ -105,7 +105,8 @@ if __name__ == "__main__":
 
     # opt = torch.optim.SGD(model.parameters(), lr=args["lr"], momentum=0.9, weight_decay=args["weight_decay"])
     opt = optim.Adam(model.parameters(), lr=args['lr'], weight_decay=args["weight_decay"])
-    scheduler = CosineAnnealingLR(opt, args["epochs"], eta_min=args["min_lr"])
+    # scheduler = CosineAnnealingLR(opt, args["epochs"], eta_min=args["min_lr"])
+    scheduler = None
 
 
     regression_manager = RegressionTools(

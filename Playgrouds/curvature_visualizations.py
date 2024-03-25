@@ -22,12 +22,12 @@ if __name__ == "__main__":
     for file in meshes_to_try:
         mesh = trimesh.load(file)
         mesh_aux = MeshAuxilliaryInfo(mesh)
-        # points, values = mesh_aux.calculate_curvature_samples(curvature_method="defect", count=4096, sampling_method="mixed")
+        points, values = mesh_aux.calculate_curvature_samples(curvature_method="defect", count=4096, sampling_method="mixed")
         # points, values = mesh_aux.calculate_surface_defect_vertices()
-        # values = np.log(np.abs(values))
+        values = np.log(np.abs(values))
 
-        points, normals = mesh_aux.sample_and_get_normals(count=4096, use_weight="mixed")
-        points, values = mesh_aux.calculate_thickness_at_points(points, normals, return_num_samples=False)
+        # points, normals = mesh_aux.sample_and_get_normals(count=4096, use_weight="mixed")
+        # points, values = mesh_aux.calculate_thickness_at_points(points, normals, return_num_samples=False)
 
         trimesh_util.show_sampled_values(mesh, points, values)
 

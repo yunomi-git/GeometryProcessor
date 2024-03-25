@@ -304,6 +304,7 @@ def save_generated_dataset_as_numpy(file_manager, max_mesh_per_file, num_points_
         "nx",
         "ny",
         "nz",
+        "curvature",
         "thickness"
     ]
 
@@ -316,20 +317,23 @@ def save_generated_dataset_as_numpy(file_manager, max_mesh_per_file, num_points_
             mesh = get_augmented_mesh(mesh, instance_data)
             mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
-            vertices, normals = mesh_aux.sample_and_get_normals(count=int(num_points_to_sample), use_weight="mixed")
-            np.random.shuffle(vertices)
+            vertices, normals, face_ids = mesh_aux.sample_and_get_normals(count=int(num_points_to_sample * 1.2), # Scaling is for thickness calculation failures
+                                                                          use_weight="mixed", return_face_ids=True)
+            # np.random.shuffle(vertices)
 
             ## Per point labels
             # calculate thicknesses / point
-            # _, thicknesses, num_hits = mesh_aux.calculate_thickness_at_points(points=vertices, normals=normals)
-            # assert(num_hits >= num_points_to_sample)
+            _, thicknesses, num_hits = mesh_aux.calculate_thickness_at_points(points=vertices, normals=normals)
+            assert(num_hits >= num_points_to_sample)
 
-            # vertices = vertices[:num_points_to_sample]
-            # normals = normals[:num_points_to_sample]
-            # thicknesses = thicknesses[:num_points_to_sample]
+            vertices = vertices[:num_points_to_sample]
+            normals = normals[:num_points_to_sample]
+            thicknesses = thicknesses[:num_points_to_sample]
+            _, curvature = mesh_aux.calculate_curvature_at_points(origins=vertices, face_ids=face_ids, curvature_method="defect")
+            curvature = curvature[:num_points_to_sample]
 
-            # per_point_label = np.concatenate((normals, thicknesses[:, np.newaxis]), axis=1)
-            per_point_label = normals
+            per_point_label = np.concatenate((normals, curvature[:, np.newaxis], thicknesses[:, np.newaxis]), axis=1)
+            # per_point_label = normals
 
             assert(len(vertices) == num_points_to_sample)
 

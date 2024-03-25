@@ -58,7 +58,7 @@ args = {
     "batch_size": 32,
     "test_batch_size": 8,
     "epochs": 100,
-    "lr": 1e-1,
+    "lr": 1e-2,
     "min_lr": 5e-3,
     "weight_decay": 2e-4,
     "seed": 1,

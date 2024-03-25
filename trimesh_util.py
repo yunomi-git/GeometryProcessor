@@ -135,21 +135,26 @@ class MeshAuxilliaryInfo:
         trimesh.repair.fix_normals(self.mesh, multibody=True)
         origins, normals = self.sample_and_get_normals(count)
 
-        facet_offset = -normals * 0.001  # This offset needs to be tuned based on stl dimensions
-        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=origins + facet_offset,
-                                                                   ray_directions=-normals,
-                                                                   multiple_hits=False)
-        hit_origins = origins[ray_ids]
-
-        distances = np.linalg.norm(hits - hit_origins, axis=1)
-        wall_thicknesses = distances
-        if return_num_samples:
-            return hit_origins, wall_thicknesses, len(tri_ids)
-        else:
-            return hit_origins, wall_thicknesses
+        return self.calculate_thickness_at_points(points=origins, normals=normals, return_num_samples=return_num_samples)
+        # min_bound = min(self.bound_length)
+        # normal_scale = 5e-5 * min_bound
+        # facet_offset = -normals * normal_scale # This offset needs to be tuned based on stl dimensions
+        # hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=origins + facet_offset,
+        #                                                            ray_directions=-normals,
+        #                                                            multiple_hits=False)
+        # hit_origins = origins[ray_ids]
+        #
+        # distances = np.linalg.norm(hits - hit_origins, axis=1)
+        # wall_thicknesses = distances
+        # if return_num_samples:
+        #     return hit_origins, wall_thicknesses, len(tri_ids)
+        # else:
+        #     return hit_origins, wall_thicknesses
 
     def calculate_thickness_at_points(self, points, normals, return_num_samples=True):
-        facet_offset = -normals * 0.001  # This offset needs to be tuned based on stl dimensions
+        min_bound = min(self.bound_length)
+        normal_scale = 5e-5 * min_bound
+        facet_offset = -normals * normal_scale  # This offset needs to be tuned based on stl dimensions
         hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=points + facet_offset,
                                                                    ray_directions=-normals,
                                                                    multiple_hits=False)
@@ -166,7 +171,9 @@ class MeshAuxilliaryInfo:
         trimesh.repair.fix_normals(self.mesh, multibody=True)
         origins, normals = self.sample_and_get_normals(count)
 
-        facet_offset = normals * 0.1  # This offset needs to be tuned based on stl dimensions
+        min_bound = min(self.bound_length)
+        normal_scale = 5e-2 * min_bound
+        facet_offset = normals * normal_scale  # 0.1 prev
         hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=origins + facet_offset,
                                                                    ray_directions=normals,
                                                                    multiple_hits=False)
@@ -182,6 +189,22 @@ class MeshAuxilliaryInfo:
     def calculate_curvature_samples(self, curvature_method="defect", count=50000, return_num_samples=False, sampling_method="even"):
         ## Methods: gaussian, mean, face
         origins, _, face_ids = self.sample_and_get_normals(count, use_weight=sampling_method, return_face_ids=True)
+        return self.calculate_curvature_at_points(origins=origins, face_ids=face_ids, curvature_method=curvature_method, return_num_samples=return_num_samples)
+        # min_facet_radii = np.sqrt(np.min(self.facet_areas)) / np.pi
+        # if curvature_method== "gaussian":
+        #     curvatures = trimesh.curvature.discrete_gaussian_curvature_measure(self.mesh, origins, radius=min_facet_radii/10)
+        # elif curvature_method== "mean":
+        #     curvatures = trimesh.curvature.discrete_mean_curvature_measure(self.mesh, origins, radius=min_facet_radii/10)
+        # else: # "defect"
+        #     face_defects = self.calculate_surface_defects_facets(use_abs=True)
+        #     curvatures = face_defects[face_ids]
+        #
+        # if return_num_samples:
+        #     return origins, curvatures, len(origins)
+        # else:
+        #     return origins, curvatures
+
+    def calculate_curvature_at_points(self, origins, face_ids, curvature_method="defect", return_num_samples=False):
         min_facet_radii = np.sqrt(np.min(self.facet_areas)) / np.pi
         if curvature_method== "gaussian":
             curvatures = trimesh.curvature.discrete_gaussian_curvature_measure(self.mesh, origins, radius=min_facet_radii/10)
@@ -272,6 +295,19 @@ def get_transformed_mesh(mesh: trimesh.Trimesh, scale=1.0, orientation=np.array(
     mesh_copy = mesh.copy()
     mesh_copy.apply_transform(transform_matrix)
     return mesh_copy
+
+def get_largest_submesh(mesh: trimesh.Trimesh):
+    if mesh.body_count > 1:
+        splits = list(mesh.split(only_watertight=False))
+        largest_volume = 0
+        largest_submesh = None
+        for submesh in splits:
+            temp_volume = submesh.volume
+            if temp_volume > largest_volume:
+                largest_volume = temp_volume
+                largest_submesh = submesh
+        mesh = largest_submesh
+    return mesh
 
 def show_sampled_values(mesh, points, values, normalize=True, scale=None):
     s = trimesh.Scene()
