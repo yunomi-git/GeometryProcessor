@@ -21,7 +21,8 @@ label_names = [
     # "thickness_violation",
     # "gap_violation"
     # "volume",
-    "bound_length"
+    # "bound_length",
+    "centroid_x"
     # "surface_area"
 ]
 
@@ -47,12 +48,14 @@ model_args = {
 
 args = {
     # Dataset Param
-    "data_fraction": 0.3,
+    "data_fraction": 1.0,
     "data_fraction_test": 0.006,
     "workers": 24,
+    "grad_acc_steps": 1,
+    "normalize_inputs": True,
 
     # Opt Param
-    "batch_size": 4,
+    "batch_size": 32,
     "test_batch_size": 8,
     "epochs": 100,
     "lr": 1e-1,
@@ -82,14 +85,18 @@ def filter_criteria(mesh, instance_data) -> bool:
 def main():
     ### Data ###
     data_root_dir = paths.HOME_PATH + "data_th5k_aug/"# "data_augmentations/" #
-    train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names, partition='train',
+    train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
+                                                partition='train',
                                                 filter_criteria=filter_criteria, use_augmentations=True,
-                                                data_fraction=args["data_fraction"], use_numpy=True, normalize=False),
+                                                data_fraction=args["data_fraction"], use_numpy=True,
+                                                normalize=args["normalize_inputs"]),
                               num_workers=24,
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
-    test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names, partition='test',
+    test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
+                                               partition='test',
                                                filter_criteria=filter_criteria, use_augmentations=False,
-                                               data_fraction=args["data_fraction_test"], use_numpy=True, normalize=False),
+                                               data_fraction=args["data_fraction_test"], use_numpy=True,
+                                               normalize=args["normalize_inputs"]),
                              num_workers=24,
                              batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 

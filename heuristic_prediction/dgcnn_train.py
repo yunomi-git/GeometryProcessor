@@ -2,7 +2,7 @@ from __future__ import print_function
 import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from heuristic_prediction.regression_tools import RegressionTools
+from heuristic_prediction.regression_tools import RegressionTools, succinct_label_save_name
 import paths
 from dgcnn_net.model import DGCNN_param, DGCNN_XL, DGCNN
 from torch.utils.data import DataLoader
@@ -20,8 +20,6 @@ import os
 
 torch.cuda.empty_cache()
 
-experiment_name = "centroid"
-
 label_names = [
     # "overhang_violation",
     # "stairstep_violation",
@@ -35,23 +33,26 @@ label_names = [
 
 model_args = {
     "num_points": 2048,
-    "conv_channel_sizes": [128, 128, 256, 512],  # [64, 64, 128, 256] #XL: 256, 256, 512, 1024, 2048
-    "emb_dims": 512,
-    "linear_sizes": [2048, 1024, 512],  # [512, 256] #XL: 4096, 2048, 1024, 512
+    "conv_channel_sizes": [128, 128, 256, 512],  # Default: [64, 64, 128, 256] #Mo: [512, 512, 1024]
+    "emb_dims": 256,
+    "linear_sizes": [1024, 512, 256, 128, 64, 32, 16],  # [512, 256] #Mo: [1024, 512, 256, 128, 64, 32, 16]
     "num_outputs": len(label_names),
-    "k": 20,
+    "k": 10,
     "dropout": 0.2,
 }
+
+experiment_name = succinct_label_save_name(label_names)
 
 args = {
     "exp_name": experiment_name,
     "label_names": label_names,
 
     # Dataset Param
-    "data_fraction": 0.3,
+    "data_fraction": 0.03,
     "data_fraction_test": 0.15,
     "workers": 24,
-    "grad_acc_steps": 2,
+    "grad_acc_steps": 1,
+    "normalize_inputs": True,
 
     # Opt Param
     "batch_size": 16,
@@ -84,14 +85,18 @@ def filter_criteria(mesh, instance_data) -> bool:
 if __name__ == "__main__":
     ### Data ###
     data_root_dir = paths.HOME_PATH + "data_th5k_aug/"# "data_augmentations/" #
-    train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names, partition='train',
+    train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
+                                                partition='train',
                                                 filter_criteria=filter_criteria, use_augmentations=True,
-                                                data_fraction=args["data_fraction"], use_numpy=True, normalize=True),
+                                                data_fraction=args["data_fraction"], use_numpy=True,
+                                                normalize=args["normalize_inputs"]),
                               num_workers=24,
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
-    test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names, partition='test',
+    test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
+                                               partition='test',
                                                filter_criteria=filter_criteria, use_augmentations=False,
-                                               data_fraction=args["data_fraction_test"], use_numpy=True, normalize=True),
+                                               data_fraction=args["data_fraction_test"], use_numpy=True,
+                                               normalize=args["normalize_inputs"]),
                              num_workers=24,
                              batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 

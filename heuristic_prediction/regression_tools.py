@@ -28,7 +28,7 @@ class RegressionTools:
         self.loss_criterion = torch.nn.MSELoss()
 
         self.clip_parameters = clip_parameters
-        self.clip_threshold = 5
+        self.clip_threshold = 1
 
         cudnn.benchmark = True
 
@@ -77,31 +77,25 @@ class RegressionTools:
             train_pred = []
             train_true = []
             with torch.enable_grad():
-                step = 0
-                for data, label in tqdm(self.train_loader):
+                for batch_idx, (data, label) in enumerate(tqdm(self.train_loader)):
                     data, label = data.to(self.device), label.to(self.device)
                     data = data.permute(0, 2, 1) # so, the input data shape is [batch, 3, 1024]
-                    if torch.isnan(data).any():
-                        print("nan found in data")
 
-                    self.opt.zero_grad()
-                    logits = self.model(data)
-                    loss = self.loss_criterion(logits, label)
+                    preds = self.model(data)
+                    loss = self.loss_criterion(preds, label) / self.gradient_accumulation_steps
                     loss.backward()
-                    if torch.isnan(logits).any():
-                        print("nan found in preds")
-                    if self.clip_parameters:
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
 
-                    # if step % self.gradient_accumulation_steps == 0:
-                    self.opt.step()
+                    if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
+                        if self.clip_parameters:
+                            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
+                        self.opt.step()
+                        self.opt.zero_grad()
 
                     batch_size = data.size()[0]
                     count += batch_size
                     train_loss += loss.item() * batch_size
                     train_true.append(label.cpu().numpy())
-                    train_pred.append(logits.detach().cpu().numpy())
-                    step += 1
+                    train_pred.append(preds.detach().cpu().numpy())
 
             if self.scheduler is not None:
                 self.scheduler.step()
@@ -110,9 +104,14 @@ class RegressionTools:
             train_pred = np.concatenate(train_pred)
 
             res = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values')
+            acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.1)
 
-            outstr = ('========\nTrain Epoch: %d \n\tLoss: %.6f \n\tr2: %s \n\tlr: %s' %
-                      (epoch, train_loss * 1.0 / count, str(res), self.opt.param_groups[0]['lr']))
+            outstr = ('========\nTrain Epoch: %d '
+                      '\n\tLoss: %.6f '
+                      '\n\tr2: %s '
+                      '\n\tlr: %s '
+                      '\n\tacc: %s' %
+                      (epoch, train_loss * 1.0 / count, str(res), self.opt.param_groups[0]['lr'], str(acc)))
             self.io.cprint(outstr)
 
             ####################
@@ -129,12 +128,12 @@ class RegressionTools:
                         data, label = data.to(self.device), label.to(self.device)
                         data = data.permute(0, 2, 1)
                         batch_size = data.size()[0]
-                        logits = self.model(data)
-                        loss = self.loss_criterion(logits, label)
+                        preds = self.model(data)
+                        loss = self.loss_criterion(preds, label)
                         count += batch_size
                         test_loss += loss.item() * batch_size
                         test_true.append(label.cpu().numpy())
-                        test_pred.append(logits.detach().cpu().numpy())
+                        test_pred.append(preds.detach().cpu().numpy())
 
                 test_true = np.concatenate(test_true)
                 test_pred = np.concatenate(test_pred)
@@ -149,6 +148,14 @@ class RegressionTools:
                 if (res > 0).all() and np.linalg.norm(res) > best_res_mag:
                     best_res_mag = np.linalg.norm(res)
                     torch.save(self.model.state_dict(), self.checkpoint_path + 'model.t7')
+
+def get_accuracy_tolerance(preds: np.ndarray, actual: np.ndarray, tolerance=0.1):
+    # input preds, actual: N x M for N values, M labels
+    # output: 1xM accuracy per label
+    within_tolerance = np.abs(preds - actual) <= tolerance
+    accuracy = np.count_nonzero(within_tolerance, axis=0) / len(preds)
+    return accuracy
+
 
 def succinct_label_save_name(label_names):
     out = ""
