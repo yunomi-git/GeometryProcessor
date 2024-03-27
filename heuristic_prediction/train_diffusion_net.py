@@ -36,9 +36,23 @@ base_path = os.path.dirname(__file__)
 
 
 # dataset_path = paths.TRAINING_DATA_PATH
-dataset_path = paths.HOME_PATH + "data2/"
+dataset_path = paths.DATA_PATH + "data_th5k_norm/"
 op_cache_dir = dataset_path + "op_cache"
 # === Load datasets
+
+# def filter_criteria(mesh, instance_data) -> bool:
+#     # if mesh_data["vertices"] > 1e4:
+#     #     return true
+#     # if instance_data["vertices"] < 1e3:
+#     #     return False
+#     # if instance_data["vertices"] > 1e5:
+#     #     return False
+#     if math.isnan(instance_data["thickness_violation"]):
+#         return False
+#     # if instance_data["scale"] > 1000:
+#     #     return False
+#
+#     return True
 
 # Train dataset
 train_dataset = DiffusionNetDataset(dataset_path, split_size=split_size,

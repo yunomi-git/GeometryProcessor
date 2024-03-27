@@ -23,13 +23,13 @@ torch.cuda.empty_cache()
 label_names = [
     # "overhang_violation",
     # "stairstep_violation",
-    # "thickness_violation",
+    "thickness_violation",
     # "gap_violation",
-    "volume"
+    # "volume"
 ]
 
 model_args = {
-    "num_points": 2048,
+    "num_points": 4096,
     "conv_channel_sizes": [128, 128, 256, 512],  # Default: [64, 64, 128, 256] #Mo: [512, 512, 1024]
     "emb_dims": 256,
     "linear_sizes": [1024, 512, 256, 128, 64, 32, 16],  # [512, 256] #Mo: [1024, 512, 256, 128, 64, 32, 16]
@@ -53,7 +53,7 @@ args = {
     "sampling_method": "mixed",
 
     # Opt Param
-    "batch_size": 16,
+    "batch_size": 8,
     "test_batch_size": 8,
     "epochs": 30,
     "lr": 1e-2,

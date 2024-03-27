@@ -39,6 +39,7 @@ class RegressionTools:
         self.args = args
         self.checkpoint_path = ("checkpoints/" + self.model_name + "/" +
                                 util.get_date_name() + "_" + args['exp_name'] + "/")
+
         print("Saving checkpoints to: ", self.checkpoint_path)
         self.io = self.create_checkpoints(args)
         self.gradient_accumulation_steps = args["grad_acc_steps"]
@@ -46,6 +47,7 @@ class RegressionTools:
 
     def create_checkpoints(self, args):
         Path(self.checkpoint_path + 'models/').mkdir(parents=True, exist_ok=True)
+        Path(self.checkpoint_path + 'images/').mkdir(parents=True, exist_ok=True)
         # save the arguments
         with open(self.checkpoint_path + "args.json", "w") as f:
             json.dump(args, f, indent=4)
@@ -68,6 +70,8 @@ class RegressionTools:
 
     def train(self, args, do_test=True, plot_every_n_epoch=-1):
         best_res_mag = 0
+        loss_history = []
+        res_train_history = []
         for epoch in range(args['epochs']):
             ####################
             # Train
@@ -75,6 +79,7 @@ class RegressionTools:
             train_loss = 0.0
             count = 0.0
             self.model.train()
+            self.opt.zero_grad()
             train_pred = []
             train_true = []
             with torch.enable_grad():
@@ -104,14 +109,8 @@ class RegressionTools:
             train_true = np.concatenate(train_true)
             train_pred = np.concatenate(train_pred)
 
-            if plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0:
-                plt.scatter(train_true, train_pred)
-                plt.xlabel("Train True")
-                plt.ylabel("Train Pred")
-                plt.show()
-
             res = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values')
-            acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.1)
+            acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.05)
 
             outstr = ('========\nTrain Epoch: %d '
                       '\n\tLoss: %.6f '
@@ -120,6 +119,36 @@ class RegressionTools:
                       '\n\tacc: %s' %
                       (epoch, train_loss * 1.0 / count, str(res), self.opt.param_groups[0]['lr'], str(acc)))
             self.io.cprint(outstr)
+
+            loss_history.append(train_loss * 1.0 / count)
+            res_train_history.append(res)
+
+            # Loss
+            plt.figure(1)
+            plt.clf()
+            plt.plot(loss_history)
+            plt.ylabel("Loss")
+            plt.xlabel("Epoch")
+
+            plt.figure(2)
+            plt.clf()
+            plt.plot(res_train_history)
+            plt.ylabel("Train R2")
+            plt.xlabel("Epoch")
+
+            if plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0:
+                plt.figure(0)
+                plt.clf()
+                plt.scatter(train_true, train_pred)
+                plt.xlabel("Train True")
+                plt.ylabel("Train Pred")
+                plt.savefig(self.checkpoint_path + "images/" + 'confusion_' + str(epoch) + '.png')
+
+                plt.figure(1)
+                plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
+
+                plt.figure(2)
+                plt.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
 
             ####################
             # Test
@@ -167,5 +196,6 @@ def get_accuracy_tolerance(preds: np.ndarray, actual: np.ndarray, tolerance=0.1)
 def succinct_label_save_name(label_names):
     out = ""
     for name in label_names:
+        name_length = len(name)
         out += name[:5] + "-"
     return out

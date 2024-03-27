@@ -17,7 +17,7 @@ from dataset.process_and_save import MeshDatasetFileManager, get_augmented_mesh
 
 
 class DiffusionNetDataset(Dataset):
-    def __init__(self, data_root_dir, split_size, k_eig, exclude_dict=None, op_cache_dir=None):
+    def __init__(self, data_root_dir, split_size, k_eig, exclude_dict=None, filter_criteria=None, op_cache_dir=None, data_fraction=1.0, label_names=None):
         self.file_manager = MeshDatasetFileManager(data_root_dir)
         self.root_dir = data_root_dir
         self.split_size = split_size  # pass None to take all entries (except those in exclude_dict)
@@ -32,24 +32,22 @@ class DiffusionNetDataset(Dataset):
         self.faces_list = []
         self.outputs_list = []
 
+        file_manager = MeshDatasetFileManager(data_root_dir)
+        all_point_clouds = []
+        all_label = []
+        label_names = label_names
+
         # Open the base directory and get the contents
-        data_files = self.file_manager.get_target_files(absolute=True)
+        data_files = file_manager.get_target_files(absolute=True)
+        num_files = len(data_files)
+        num_file_to_use = int(data_fraction * num_files)
+        data_files = np.random.choice(data_files, size=num_file_to_use, replace=False)
 
         # Now parse through all the files
         for data_file in tqdm(data_files):
-            # print(data_file)
-            # Load the file
-            file_path = data_file
-            with open(file_path, 'r') as f:
-                mesh_data = json.load(f)
-
-            if mesh_data["vertices"] > 1e4:
-                continue
-            if mesh_data["vertices"] < 1e2:
-                continue
-            if math.isnan(mesh_data["thickness_violation"]):
-                continue
-            mesh_path = data_root_dir + mesh_data["mesh_relative_path"]
+            with open(data_file, 'r') as f:
+                target_master = json.load(f)
+            mesh_path = file_manager.root_dir + target_master["mesh_relative_path"]
 
             verts, faces = pp3d.read_mesh(mesh_path)
             verts = torch.tensor(verts).float()
@@ -66,7 +64,7 @@ class DiffusionNetDataset(Dataset):
 
             self.verts_list.append(verts)
             self.faces_list.append(faces)
-            self.outputs_list.append(mesh_data)
+            # self.outputs_list.append(mesh_data)
 
 
     def __len__(self):
