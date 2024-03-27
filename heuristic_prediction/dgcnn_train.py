@@ -25,10 +25,7 @@ label_names = [
     # "stairstep_violation",
     # "thickness_violation",
     # "gap_violation",
-    # "volume",
-    # "bound_length",
-    # "surface_area"
-    "centroid_x"
+    "volume"
 ]
 
 model_args = {
@@ -37,7 +34,7 @@ model_args = {
     "emb_dims": 256,
     "linear_sizes": [1024, 512, 256, 128, 64, 32, 16],  # [512, 256] #Mo: [1024, 512, 256, 128, 64, 32, 16]
     "num_outputs": len(label_names),
-    "k": 10,
+    "k": 40,
     "dropout": 0.2,
 }
 
@@ -52,7 +49,8 @@ args = {
     "data_fraction_test": 0.15,
     "workers": 24,
     "grad_acc_steps": 2,
-    "normalize_inputs": True,
+    "normalize_inputs": False,
+    "sampling_method": "mixed",
 
     # Opt Param
     "batch_size": 16,
@@ -68,35 +66,37 @@ args.update(model_args)
 
 
 
-def filter_criteria(mesh, instance_data) -> bool:
-    # if mesh_data["vertices"] > 1e4:
-    #     return true
-    # if instance_data["vertices"] < 1e3:
-    #     return False
-    # if instance_data["vertices"] > 1e5:
-    #     return False
-    if math.isnan(instance_data["thickness_violation"]):
-        return False
-    # if instance_data["scale"] > 1000:
-    #     return False
-
-    return True
+# def filter_criteria(mesh, instance_data) -> bool:
+#     # if mesh_data["vertices"] > 1e4:
+#     #     return true
+#     # if instance_data["vertices"] < 1e3:
+#     #     return False
+#     # if instance_data["vertices"] > 1e5:
+#     #     return False
+#     if math.isnan(instance_data["thickness_violation"]):
+#         return False
+#     # if instance_data["scale"] > 1000:
+#     #     return False
+#
+#     return True
 
 if __name__ == "__main__":
     ### Data ###
-    data_root_dir = paths.HOME_PATH + "data_th5k_aug/"# "data_augmentations/" #
+    data_root_dir = paths.DATA_PATH + "data_th5k_norm/"
     train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                 partition='train',
-                                                filter_criteria=filter_criteria, use_augmentations=True,
+                                                # filter_criteria=filter_criteria, use_augmentations=True,
                                                 data_fraction=args["data_fraction"], use_numpy=True,
-                                                normalize=args["normalize_inputs"]),
+                                                normalize=args["normalize_inputs"],
+                                                sampling_method=args["sampling_method"]),
                               num_workers=24,
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                partition='test',
-                                               filter_criteria=filter_criteria, use_augmentations=False,
+                                               # filter_criteria=filter_criteria, use_augmentations=False,
                                                data_fraction=args["data_fraction_test"], use_numpy=True,
-                                               normalize=args["normalize_inputs"]),
+                                               normalize=args["normalize_inputs"],
+                                               sampling_method=args["sampling_method"]),
                              num_workers=24,
                              batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 
@@ -105,8 +105,8 @@ if __name__ == "__main__":
 
     # opt = torch.optim.SGD(model.parameters(), lr=args["lr"], momentum=0.9, weight_decay=args["weight_decay"])
     opt = optim.Adam(model.parameters(), lr=args['lr'], weight_decay=args["weight_decay"])
-    # scheduler = CosineAnnealingLR(opt, args["epochs"], eta_min=args["min_lr"])
-    scheduler = None
+    scheduler = CosineAnnealingLR(opt, args["epochs"], eta_min=args["min_lr"])
+    # scheduler = None
 
 
     regression_manager = RegressionTools(
@@ -120,4 +120,4 @@ if __name__ == "__main__":
         clip_parameters=True
     )
 
-    regression_manager.train(args, do_test=False)
+    regression_manager.train(args, do_test=False, plot_every_n_epoch=1)

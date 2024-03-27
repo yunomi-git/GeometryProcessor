@@ -283,17 +283,21 @@ class MeshAuxilliaryInfo:
     def get_transformed_mesh(self, scale=1.0, orientation=np.array([0, 0, 0])):
         return MeshAuxilliaryInfo(get_transformed_mesh(self.mesh, scale=scale, orientation=orientation))
 
-def get_transformed_mesh(mesh: trimesh.Trimesh, scale=1.0, orientation=np.array([0, 0, 0])):
+def get_transformed_mesh(mesh: trimesh.Trimesh, scale=1.0, translation=np.array([0, 0, 0]),
+                         orientation=np.array([0, 0, 0])):
+    # Order applied: translate, rotate, scale
     # orientation as [x, y, z]
     r = R.from_euler('zyx', [orientation[2], orientation[1], orientation[0]]).as_matrix()
     rot_matrix = np.zeros((4, 4))
     rot_matrix[:3, :3] = r
     rot_matrix[3, 3] = 1.0
     scale_matrix = np.diag([scale, scale, scale, 1.0])
+    trans_matrix = np.eye(4)
+    trans_matrix[:3, 3] = translation
 
-    transform_matrix = np.matmul(scale_matrix, rot_matrix)
+    transform_matrix = scale_matrix @ (rot_matrix @ trans_matrix)
     mesh_copy = mesh.copy()
-    mesh_copy.apply_transform(transform_matrix)
+    mesh_copy.apply_transform(transform_matrix.astype(np.float32))
     return mesh_copy
 
 def get_largest_submesh(mesh: trimesh.Trimesh):

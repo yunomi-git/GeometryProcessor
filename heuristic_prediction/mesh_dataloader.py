@@ -83,9 +83,11 @@ class DiffusionNetDataset(Dataset):
         return verts, faces, frames, mass, L, evals, evecs, gradX, gradY, mesh_data
 
 
-def load_point_clouds_numpy(data_root_dir, num_points, label_names, filter_criteria=None, data_fraction=1.0):
+def load_point_clouds_numpy(data_root_dir, num_points, label_names, filter_criteria=None,
+                            data_fraction=1.0, sampling_method="mixed"):
     file_manager = MeshDatasetFileManager(data_root_dir)
-    clouds, targets = file_manager.load_numpy_pointclouds(num_points, desired_label_names=label_names)
+    clouds, targets = file_manager.load_numpy_pointclouds(num_points, desired_label_names=label_names,
+                                                          sampling_method=sampling_method)
     p = np.random.permutation(len(clouds))
     clouds = clouds[p]
     targets = targets[p]
@@ -95,7 +97,8 @@ def load_point_clouds_numpy(data_root_dir, num_points, label_names, filter_crite
     print("Total number of point clouds processed: ", num_file_to_use)
     return clouds[:num_file_to_use, :, :], targets[:num_file_to_use, :]
 
-def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_criteria=None, use_augmentations=True, data_fraction=1.0):
+def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_criteria=None, use_augmentations=True,
+                             data_fraction=1.0, sampling_method="mixed"):
     file_manager = MeshDatasetFileManager(data_root_dir)
     all_point_clouds = []
     all_label = []
@@ -119,7 +122,7 @@ def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_crit
                 continue
 
             mesh = get_augmented_mesh(mesh, instance_data)
-            vertices, _ = trimesh.sample.sample_surface(mesh, count=num_points)
+            vertices, _ = trimesh.sample.sample_surface(mesh, count=num_points, face_weight=sampling_method)
 
             label = np.array([instance_data[label_name] for label_name in label_names])
             # if "centroid" in label_names:
@@ -135,7 +138,8 @@ def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_crit
     return point_clouds, label
 
 class PointCloudDataset(Dataset):
-    def __init__(self, data_root_dir, num_points, label_names, partition='train', filter_criteria=None, use_augmentations=True, data_fraction=1.0, use_numpy=True, normalize=False):
+    def __init__(self, data_root_dir, num_points, label_names, partition='train', filter_criteria=None,
+                 use_augmentations=True, data_fraction=1.0, use_numpy=True, normalize=False, sampling_method="mixed"):
         # filter_criteria of the form filter_criteria(mesh, instance_data)->boolean
         if use_numpy:
             print("Loading data from numpy...")
@@ -148,31 +152,34 @@ class PointCloudDataset(Dataset):
             self.point_clouds, self.label = load_point_clouds_numpy(data_root_dir=data_root_dir,
                                                                     num_points=2 * num_points,
                                                                     label_names=label_names,
-                                                                    data_fraction=data_fraction)
+                                                                    data_fraction=data_fraction,
+                                                                    sampling_method=sampling_method)
         else:
             self.point_clouds, self.label = load_point_clouds_manual(data_root_dir=data_root_dir,
                                                                      num_points=2 * num_points,
                                                                      label_names=label_names,
                                                                      data_fraction=data_fraction,
                                                                      filter_criteria=filter_criteria,
-                                                                     use_augmentations=use_augmentations)
+                                                                     use_augmentations=use_augmentations,
+                                                                     sampling_method=sampling_method)
         # Normalize each target
         if normalize:
-            # std = np.std(self.label, axis=0)
-            # mean = np.mean(self.label, axis=0)
-            # self.label = (self.label - mean) / std
-
             # Normalize inputs
             # First get bounding boxes
             bound_max = np.max(self.point_clouds, axis=1)
             bound_min = np.min(self.point_clouds, axis=1)
+            centroid = np.mean(self.point_clouds, axis=1)
             bound_length = np.max(bound_max - bound_min, axis=1) # maximum length
             # scale to box of 0, 1
             self.normalization_scale = 1.0/bound_length
             normalization_scale_multiplier = np.repeat(self.normalization_scale[:, np.newaxis], len(self.point_clouds[0]), axis=1)
             normalization_scale_multiplier = np.repeat(normalization_scale_multiplier[:, :, np.newaxis], 3, axis=2)
-            self.normalization_order = 1
+
+            centering = np.repeat(centroid[:, np.newaxis, :], num_points*2, axis=1)
+            self.point_clouds -= centering
             self.point_clouds = normalization_scale_multiplier * self.point_clouds
+
+            self.normalization_order = 3
             self.label = self.label * np.repeat(np.power(self.normalization_scale, self.normalization_order)[:, np.newaxis], len(self.label[0]), axis=1)
 
 
@@ -184,7 +191,7 @@ class PointCloudDataset(Dataset):
         label = self.label[item] # Grab the output
         if self.partition == 'train':
             # pointcloud = dgcnn_data.translate_pointcloud(pointcloud)
-            np.random.shuffle(pointcloud)
+            np.random.shuffle(pointcloud) # TODO note - this does not shuffle the original selection of points
         return pointcloud, label
 
     def __len__(self):

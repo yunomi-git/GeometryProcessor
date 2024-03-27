@@ -53,6 +53,7 @@ args = {
     "workers": 24,
     "grad_acc_steps": 1,
     "normalize_inputs": True,
+    "sampling_method": "mixed",
 
     # Opt Param
     "batch_size": 32,
@@ -84,7 +85,7 @@ def filter_criteria(mesh, instance_data) -> bool:
 
 def main():
     ### Data ###
-    data_root_dir = paths.HOME_PATH + "data_th5k_aug/"# "data_augmentations/" #
+    data_root_dir = paths.DATA_PATH + "data_th5k_aug/"# "data_augmentations/" #
     train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                 partition='train',
                                                 filter_criteria=filter_criteria, use_augmentations=True,

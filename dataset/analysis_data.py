@@ -20,7 +20,7 @@ if __name__ == "__main__":
     metrics = util.DictionaryList()
 
 
-    data_root_dir = paths.HOME_PATH + "data_th5k_aug/"
+    data_root_dir = paths.DATA_PATH + "data_th5k_norm/"
     data_manager = MeshDatasetFileManager(data_root_dir)
     data_files =  data_manager.get_target_files(absolute=True)
     for data_file in tqdm(data_files):
@@ -55,8 +55,8 @@ if __name__ == "__main__":
 
     sns.histplot(data=data, x="vertices", log_scale=True)
     plt.show()
-    sns.histplot(data=data, x="bound_length", log_scale=True)
-    plt.show()
+    # sns.histplot(data=data, x="bound_length", log_scale=True)
+    # plt.show()
     sns.histplot(data=data, x="volume", log_scale=True)
     plt.show()
     sns.histplot(data=data, x="overhang_violation", log_scale=(False, True))

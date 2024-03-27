@@ -56,9 +56,9 @@ def calculate_normals_differentiable(meshes: Meshes):
     v2 = verts_packed[faces_packed[:, 2]]
 
     n0 = torch.cross(v1-v0, v0-v2, dim=1)
-    n0 = f.normalize(n0, p=2, dim=1)
-    # normals = -n0 / torch.linalg.norm(n0, dim=1)
-    return -n0
+    normals = -f.normalize(n0, p=2, dim=1)
+    areas = torch.linalg.vector_norm(n0, dim=1)
+    return normals, areas
 
 
     # loss = 1 - torch.cosine_similarity(n0, n1, dim=1)
@@ -99,7 +99,7 @@ if __name__=="__main__":
             model.bias.copy_(torch.zeros(3))
         out_verts = model(tensor_verts)
         meshes = Meshes(faces=[tensor_faces], verts=[out_verts])
-        normals_tensor = calculate_normals_differentiable(meshes)
+        normals_tensor, areas_tensor = calculate_normals_differentiable(meshes)
         loss = normals_to_cost_differentiable(normals_tensor)
         loss.backward()
     # normals = normals_tensor.numpy()

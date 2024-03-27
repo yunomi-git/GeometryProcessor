@@ -9,6 +9,7 @@ from pathlib import Path
 import json
 import util
 from util import IOStream
+import matplotlib.pyplot as plt
 
 
 
@@ -65,7 +66,7 @@ class RegressionTools:
         os.environ['PYTHONHASHSEED'] = str(seed) # What is this?
         os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE" # What is this?
 
-    def train(self, args, do_test=True):
+    def train(self, args, do_test=True, plot_every_n_epoch=-1):
         best_res_mag = 0
         for epoch in range(args['epochs']):
             ####################
@@ -102,6 +103,12 @@ class RegressionTools:
 
             train_true = np.concatenate(train_true)
             train_pred = np.concatenate(train_pred)
+
+            if plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0:
+                plt.scatter(train_true, train_pred)
+                plt.xlabel("Train True")
+                plt.ylabel("Train Pred")
+                plt.show()
 
             res = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values')
             acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.1)
@@ -160,5 +167,5 @@ def get_accuracy_tolerance(preds: np.ndarray, actual: np.ndarray, tolerance=0.1)
 def succinct_label_save_name(label_names):
     out = ""
     for name in label_names:
-        out += name[:3] + "-"
+        out += name[:5] + "-"
     return out

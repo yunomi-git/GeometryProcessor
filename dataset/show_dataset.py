@@ -31,14 +31,21 @@ if __name__ == "__main__":
         # mesh = get_augmented_mesh(mesh, augmentations)
         # trimesh_util.show_mesh(mesh)
 
+        # mesh = trimesh_util.get_transformed_mesh(mesh, scale=1.0, translation=np.array([1, 0, 0]),
+        #                                          orientation=np.array([0.0, 0.0, np.pi/2]))
+        # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+        # centroid = np.mean(mesh_aux.vertices, axis=0)
+        # print(centroid)
+        # trimesh_util.show_mesh(mesh)
+
         ## Normals
         # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
         # points, normals = mesh_aux.sample_and_get_normals(count=5000, even=False, area_weight=False)
         # trimesh_util.show_mesh_with_normals(mesh, points, normals)
 
         ## Samples
-        mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-        points, values = mesh_aux.calculate_curvature_samples(use_gaussian=True, count=10000)
+        # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+        # points, values = mesh_aux.calculate_curvature_samples(use_gaussian=True, count=10000)
         # points, values = mesh_aux.calculate_gap_samples()
 
         # points, values = mesh_aux.calculate_thicknesses_samples()
@@ -47,7 +54,7 @@ if __name__ == "__main__":
 
         # points, values = mesh_aux.calculate_overhangs_samples()
         #
-        trimesh_util.show_sampled_values(mesh, points, values)
+        # trimesh_util.show_sampled_values(mesh, points, values)
     else:
         file_manager = MeshDatasetFileManager(paths.HOME_PATH + "data2/")
         mesh_paths = file_manager.get_mesh_files(absolute=True)
