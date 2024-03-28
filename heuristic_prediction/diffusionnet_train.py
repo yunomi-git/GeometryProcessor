@@ -117,7 +117,7 @@ if __name__=="__main__":
     # === Optimize
     opt = optim.Adam(model.parameters(), lr=args['lr'], weight_decay=args["weight_decay"])
     # scheduler = CosineAnnealingLR(opt, args["epochs"], eta_min=args["min_lr"])
-    scheduler = StepLR(opt, step_size=int(args["epochs"] / args["num_decays"]), gamma=args["lr_reduction_gamma"])
+    scheduler = StepLR(opt, step_size=int(args["epochs"] / args["num_lr_reductions"]), gamma=args["lr_reduction_gamma"])
 
     regression_manager = RegressionTools(
         args=args,

@@ -8,7 +8,7 @@ import numpy as np
 
 import diffusion_net
 import paths
-from heuristic_prediction.mesh_dataloader import DiffusionNetDataset
+from heuristic_prediction.diffusionnet_dataloader import DiffusionNetDataset
 
 # parser.add_argument("--split_size", type=int, help="how large of a training set per-class default: 10", default=10)
 split_size = 10

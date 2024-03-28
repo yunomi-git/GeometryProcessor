@@ -1,91 +1,15 @@
 import numpy as np
-import json
-import math
 import trimesh
-
-import torch
 from torch.utils.data import Dataset
-
-import potpourri3d as pp3d
-
-import diffusion_net
 from tqdm import tqdm
-
 from dataset.process_and_save import MeshDatasetFileManager, get_augmented_mesh
 
 
-
-
-class DiffusionNetDataset(Dataset):
-    def __init__(self, data_root_dir, split_size, k_eig, exclude_dict=None, filter_criteria=None, op_cache_dir=None, data_fraction=1.0, label_names=None):
-        self.file_manager = MeshDatasetFileManager(data_root_dir)
-        self.root_dir = data_root_dir
-        self.split_size = split_size  # pass None to take all entries (except those in exclude_dict)
-        self.k_eig = k_eig
-        self.k_eig_list = []
-        self.op_cache_dir = op_cache_dir
-
-        self.entries = {}
-
-        # store in memory
-        self.verts_list = []
-        self.faces_list = []
-        self.outputs_list = []
-
-        file_manager = MeshDatasetFileManager(data_root_dir)
-        all_point_clouds = []
-        all_label = []
-        label_names = label_names
-
-        # Open the base directory and get the contents
-        data_files = file_manager.get_target_files(absolute=True)
-        num_files = len(data_files)
-        num_file_to_use = int(data_fraction * num_files)
-        data_files = np.random.choice(data_files, size=num_file_to_use, replace=False)
-
-        # Now parse through all the files
-        for data_file in tqdm(data_files):
-            with open(data_file, 'r') as f:
-                target_master = json.load(f)
-            mesh_path = file_manager.root_dir + target_master["mesh_relative_path"]
-
-            verts, faces = pp3d.read_mesh(mesh_path)
-            verts = torch.tensor(verts).float()
-            faces = torch.tensor(faces)
-
-            # Attempt to get eigen decomposition. If cannot, skip
-            try:
-                diffusion_net.geometry.get_operators(verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
-            except: # Or valueerror or ArpackError
-                continue
-
-            # center and unit scale
-            verts = diffusion_net.geometry.normalize_positions(verts)
-
-            self.verts_list.append(verts)
-            self.faces_list.append(faces)
-            # self.outputs_list.append(mesh_data)
-
-
-    def __len__(self):
-        return len(self.verts_list)
-
-    def __getitem__(self, idx):
-        verts = self.verts_list[idx]
-        faces = self.faces_list[idx]
-        mesh_data = self.outputs_list[idx]
-        # print(mesh_data["mesh_relative_path"])
-        frames, mass, L, evals, evecs, gradX, gradY = diffusion_net.geometry.get_operators(verts, faces,
-                                                                                           k_eig=self.k_eig,
-                                                                                           op_cache_dir=self.op_cache_dir)
-        return verts, faces, frames, mass, L, evals, evecs, gradX, gradY, mesh_data
-
-
-def load_point_clouds_numpy(data_root_dir, num_points, label_names, filter_criteria=None,
-                            data_fraction=1.0, sampling_method="mixed"):
+def load_point_clouds_numpy(data_root_dir, num_points, label_names,
+                            data_fraction=1.0, sampling_method="mixed", outputs_at="global"):
     file_manager = MeshDatasetFileManager(data_root_dir)
     clouds, targets = file_manager.load_numpy_pointclouds(num_points, desired_label_names=label_names,
-                                                          sampling_method=sampling_method)
+                                                          sampling_method=sampling_method, outputs_at=outputs_at)
     p = np.random.permutation(len(clouds))
     clouds = clouds[p]
     targets = targets[p]
@@ -93,7 +17,7 @@ def load_point_clouds_numpy(data_root_dir, num_points, label_names, filter_crite
     num_file_to_use = int(data_fraction * num_files)
 
     print("Total number of point clouds processed: ", num_file_to_use)
-    return clouds[:num_file_to_use, :, :], targets[:num_file_to_use, :]
+    return clouds[:num_file_to_use], targets[:num_file_to_use]
 
 def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_criteria=None, use_augmentations=True,
                              data_fraction=1.0, sampling_method="mixed"):
@@ -136,9 +60,10 @@ def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_crit
     return point_clouds, label
 
 class PointCloudDataset(Dataset):
-    def __init__(self, data_root_dir, num_points, label_names, partition='train', filter_criteria=None,
+    def __init__(self, data_root_dir, num_points, label_names, partition='train', filter_criteria=None, outputs_at="global",
                  use_augmentations=True, data_fraction=1.0, use_numpy=True, normalize=False, sampling_method="mixed"):
         # filter_criteria of the form filter_criteria(mesh, instance_data)->boolean
+        self.outputs_at = outputs_at
         if use_numpy:
             print("Loading data from numpy...")
             if use_augmentations:
@@ -151,8 +76,11 @@ class PointCloudDataset(Dataset):
                                                                     num_points=2 * num_points,
                                                                     label_names=label_names,
                                                                     data_fraction=data_fraction,
-                                                                    sampling_method=sampling_method)
+                                                                    sampling_method=sampling_method,
+                                                                    outputs_at=outputs_at)
         else:
+            if outputs_at == "vertices":
+                print("Warning: outputs_at has not been implemented for vertices with this loading method")
             self.point_clouds, self.label = load_point_clouds_manual(data_root_dir=data_root_dir,
                                                                      num_points=2 * num_points,
                                                                      label_names=label_names,
@@ -185,13 +113,22 @@ class PointCloudDataset(Dataset):
         self.partition = partition
 
     def __getitem__(self, item):
-        pointcloud = self.point_clouds[item][:self.num_points] # Sample points from the mesh
-        label = self.label[item] # Grab the output
+        pointcloud = self.point_clouds[item]
+        label = self.label[item]
+
+        # Grab random num_points from the point cloud
         if self.partition == 'train':
-            # pointcloud = dgcnn_data.translate_pointcloud(pointcloud)
-            np.random.shuffle(pointcloud) # TODO note - this does not shuffle the original selection of points
-        # TODO check this:
-        pointcloud = pointcloud.permute(1, 0) # Order is [features, points]
+            p = np.random.permutation(len(pointcloud))[:self.num_points]
+            # pointcloud = dgcnn_data.translate_pointcloud(self.pointcloud)
+        else:
+            p = np.arange(self.num_points)
+
+        if self.outputs_at == "vertices":
+            label = label[p]
+            label = np.transpose(label, (1, 0))
+        pointcloud = pointcloud[p]
+        pointcloud = np.transpose(pointcloud, (1, 0))
+
         return pointcloud, label
 
     def __len__(self):

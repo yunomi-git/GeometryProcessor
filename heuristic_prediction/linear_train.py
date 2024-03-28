@@ -8,7 +8,7 @@ import paths
 from dgcnn_net.model import DGCNN_param, DGCNN_XL, DGCNN
 from torch.utils.data import DataLoader
 import math
-from heuristic_prediction.mesh_dataloader import load_point_clouds_numpy
+from heuristic_prediction.pointcloud_dataloader import load_point_clouds_numpy
 import numpy as np
 from torch.utils.data import Dataset
 

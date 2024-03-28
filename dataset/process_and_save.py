@@ -74,14 +74,18 @@ class MeshDatasetFileManager:
         mesh_path = self.root_dir + target["mesh_relative_path"]
         return trimesh.load(mesh_path, force="mesh")
 
-    def load_numpy_pointclouds(self, num_points=None, desired_label_names=None, sampling_method="mixed"):
+    def load_numpy_pointclouds(self, num_points=None, outputs_at="global", desired_label_names=None, sampling_method="mixed"):
+        # outputs_at = "global", "vertices"
         # First locate the manifest
         numpy_path = self.get_numpy_pointcloud_path(absolute=True, sampling_method=sampling_method)
         manifest_path = numpy_path + "manifest.json"
         with open(manifest_path, 'r') as f:
             manifest = json.load(f)
 
-        label_names = manifest["label_names"]
+        if outputs_at == "global":
+            label_names = manifest["label_names"]
+        else:
+            label_names = manifest["per_point_label_names"]
 
         # For each file in the manifest, add to numpy array
         if num_points is None or num_points > manifest["points_per_cloud"]:
@@ -92,8 +96,15 @@ class MeshDatasetFileManager:
         for clouds_path in manifest["pointcloud_files"]:
             clouds_partition = np.load(numpy_path + clouds_path, allow_pickle=True)
             clouds.append(clouds_partition[:, :num_points, :])
-        for targets_path in manifest["target_files"]:
-            targets.append(np.load(numpy_path + targets_path, allow_pickle=True))
+        if outputs_at == "global":
+            for targets_path in manifest["target_files"]:
+                # each target is data x labels
+                targets.append(np.load(numpy_path + targets_path, allow_pickle=True))
+        else:
+            for targets_path in manifest["per_point_target_files"]:
+                # each target is data x points x labels
+                target_partition = np.load(numpy_path + targets_path, allow_pickle=True)
+                targets.append(target_partition[:, :num_points, :])
 
         clouds = np.concatenate(clouds, axis=0)
         targets = np.concatenate(targets, axis=0)
@@ -103,7 +114,10 @@ class MeshDatasetFileManager:
         for desired_label in desired_label_names:
             label_indices.append(label_names.index(desired_label))
 
-        targets = targets[:, label_indices]
+        if outputs_at == "global":
+            targets = targets[:, label_indices]
+        else:
+            targets = targets[:, :, label_indices]
 
         # # Convert targets to dictionary
         # targets_dict = {}

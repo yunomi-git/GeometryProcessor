@@ -34,7 +34,7 @@ time = util.Stopwatch()
 
 
 ms = pymeshlab.MeshSet()
-ms.load_new_mesh(paths.HOME_PATH + "stls/Crane.stl")
+ms.load_new_mesh(paths.HOME_PATH + "stls/crane.stl")
 # ms.add_mesh(labmesh)
 time.start()
 
@@ -58,7 +58,7 @@ ms.compute_scalar_by_discrete_curvature_per_vertex(curvaturetype = 3)
 
 # Then collapse large faces
 ms.compute_selection_by_color_per_face(color = pymeshlab.Color(255, 0, 0, 255),
-                                       percentrh = 0.1, percentgs = 0.090000, percentbv = 0.2)
+                                       percentrh = 0.1, percentgs = 0.1, percentbv = 0.2)
 ms.meshing_isotropic_explicit_remeshing(iterations = 3,
                                         selectedonly = True,
                                         targetlen = pymeshlab.PercentageValue(2),
@@ -66,18 +66,18 @@ ms.meshing_isotropic_explicit_remeshing(iterations = 3,
                                         collapseflag = True)
 
 # Also refine medium faces
-ms.compute_selection_by_color_per_face(color = pymeshlab.Color(150, 255, 0, 255),
-                                       percentrh = 0.2, percentgs = 0.2, percentbv = 0.2)
+ms.compute_selection_by_color_per_face(color = pymeshlab.Color(38, 255, 0, 255),
+                                       percentrh = 0.25)
 ms.meshing_isotropic_explicit_remeshing(iterations = 3,
                                         selectedonly = True,
                                         targetlen = pymeshlab.PercentageValue(1),
                                         splitflag=True, collapseflag = True)
 
-ms.compute_selection_by_color_per_face(color = pymeshlab.Color(0, 255, 0, 255))
-ms.meshing_isotropic_explicit_remeshing(iterations = 3,
-                                        selectedonly = True,
-                                        targetlen = pymeshlab.PercentageValue(0.5),
-                                        splitflag=True, collapseflag = True)
+# ms.compute_selection_by_color_per_face(color = pymeshlab.Color(0, 255, 0, 255))
+# ms.meshing_isotropic_explicit_remeshing(iterations = 3,
+#                                         selectedonly = True,
+#                                         targetlen = pymeshlab.PercentageValue(0.5),
+#                                         splitflag=True, collapseflag = True)
 
 time.print_time()
 ms.show_polyscope()

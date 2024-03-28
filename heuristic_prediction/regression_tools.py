@@ -68,7 +68,7 @@ class RegressionTools:
         os.environ['PYTHONHASHSEED'] = str(seed) # What is this?
         os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE" # What is this?
 
-    def train(self, args, do_test=True, plot_every_n_epoch=-1):
+    def train(self, args, do_test=True, plot_every_n_epoch=-1, transpose_inputs=True):
         best_res_mag = 0
         loss_history = []
         res_train_history = []
@@ -85,8 +85,9 @@ class RegressionTools:
             with torch.enable_grad():
                 for batch_idx, (data, label) in enumerate(tqdm(self.train_loader)):
                     data, label = data.to(self.device), label.to(self.device)
-                    # TODO permute only works for non-diffusion networks
-                    # data = data.permute(0, 2, 1) # so, the input data shape is [batch, features, points]
+                    # TODO permute only works for pointcloud networks. Is this the best place to put these?
+                    # if transpose_inputs:
+                    #     data = data.permute(0, 2, 1) # so, the input data shape is [batch, features, points]
 
                     preds = self.model(data)
                     loss = self.loss_criterion(preds, label) / self.gradient_accumulation_steps
@@ -108,9 +109,9 @@ class RegressionTools:
                 self.scheduler.step()
 
             train_true = np.concatenate(train_true)
-            train_pred = np.concatenate(train_pred)
+            train_pred = np.concatenate(train_pred) # for vertices, outputs as batch x dim x points. swap to batch*points x dim
 
-            res = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values')
+            res = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values') #num_val x dims
             acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.05)
 
             outstr = ('========\nTrain Epoch: %d '

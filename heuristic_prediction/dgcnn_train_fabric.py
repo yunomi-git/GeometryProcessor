@@ -15,7 +15,7 @@ from dgcnn_net.util import cal_loss, IOStream
 import sklearn.metrics as metrics
 from tqdm import tqdm
 import math
-from heuristic_prediction.mesh_dataloader import PointCloudDataset
+from heuristic_prediction.pointcloud_dataloader import PointCloudDataset
 from lightning.fabric import Fabric
 import argparse
 import sys
