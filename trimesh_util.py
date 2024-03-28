@@ -204,14 +204,14 @@ class MeshAuxilliaryInfo:
         # else:
         #     return origins, curvatures
 
-    def calculate_curvature_at_points(self, origins, face_ids, curvature_method="defect", return_num_samples=False):
+    def calculate_curvature_at_points(self, origins, face_ids, curvature_method="defect", return_num_samples=False, use_abs=True):
         min_facet_radii = np.sqrt(np.min(self.facet_areas)) / np.pi
         if curvature_method== "gaussian":
             curvatures = trimesh.curvature.discrete_gaussian_curvature_measure(self.mesh, origins, radius=min_facet_radii/10)
         elif curvature_method== "mean":
             curvatures = trimesh.curvature.discrete_mean_curvature_measure(self.mesh, origins, radius=min_facet_radii/10)
         else: # "defect"
-            face_defects = self.calculate_surface_defects_facets(use_abs=True)
+            face_defects = self.calculate_surface_defects_facets(use_abs=use_abs)
             curvatures = face_defects[face_ids]
 
         if return_num_samples:
@@ -237,7 +237,7 @@ class MeshAuxilliaryInfo:
         if use_abs:
             face_defects = np.sum(np.abs(face_defects_mapped), axis=1)
         else:
-            face_defects = np.sum(face_defects_mapped, axis=1)
+            face_defects = np.abs(np.sum(face_defects_mapped, axis=1))
         return face_defects
 
 

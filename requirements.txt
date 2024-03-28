@@ -18,6 +18,9 @@ lightning
 #dgcnn
 h5py
 
+pymeshlab
+polyscope
+
 #
 # ln -s diffusion-net/src/diffusion_net diffusion_net
 # ln -s dgcnn/pytorch dgcnn_net
