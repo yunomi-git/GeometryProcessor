@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 
 
-class RegressionTools:
+class SegmentationRegressionTools:
     def __init__(self, args, label_names, train_loader, test_loader, model, opt, scheduler=None, clip_parameters=False):
         self.device = torch.device("cuda")
         self.seed_all(args["seed"])
@@ -85,8 +85,7 @@ class RegressionTools:
             with torch.enable_grad():
                 for batch_idx, (data, label) in enumerate(tqdm(self.train_loader)):
                     data, label = data.to(self.device), label.to(self.device)
-                    # TODO permute only works for non-diffusion networks
-                    # data = data.permute(0, 2, 1) # so, the input data shape is [batch, features, points]
+                    data = data.permute(0, 2, 1) # so, the input data shape is [batch, 3, 1024]
 
                     preds = self.model(data)
                     loss = self.loss_criterion(preds, label) / self.gradient_accumulation_steps
@@ -125,7 +124,18 @@ class RegressionTools:
             res_train_history.append(res)
 
             # Loss
-            # TODO Save these pictures per feature
+            plt.figure(1)
+            plt.clf()
+            plt.plot(loss_history)
+            plt.ylabel("Loss")
+            plt.xlabel("Epoch")
+
+            plt.figure(2)
+            plt.clf()
+            plt.plot(res_train_history)
+            plt.ylabel("Train R2")
+            plt.xlabel("Epoch")
+
             if plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0:
                 plt.figure(0)
                 plt.clf()
@@ -135,17 +145,9 @@ class RegressionTools:
                 plt.savefig(self.checkpoint_path + "images/" + 'confusion_' + str(epoch) + '.png')
 
                 plt.figure(1)
-                plt.clf()
-                plt.plot(loss_history)
-                plt.ylabel("Loss")
-                plt.xlabel("Epoch")
                 plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
 
                 plt.figure(2)
-                plt.clf()
-                plt.plot(res_train_history)
-                plt.ylabel("Train R2")
-                plt.xlabel("Epoch")
                 plt.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
 
             ####################
@@ -199,41 +201,3 @@ def succinct_label_save_name(label_names):
     return out
 
 
-# class TrainingLogger:
-#     def __init__(self, save_path):
-#         self.save_path = save_path
-#
-#     def log_current_epoch(self):
-#         loss_history.append(train_loss * 1.0 / count)
-#         res_train_history.append(res)
-#
-#     def print(self):
-#         outstr = ('========\nTrain Epoch: %d '
-#                   '\n\tLoss: %.6f '
-#                   '\n\tr2: %s '
-#                   '\n\tlr: %s '
-#                   '\n\tacc: %s' %
-#                   (epoch, train_loss * 1.0 / count, str(res), self.opt.param_groups[0]['lr'], str(acc)))
-#         self.io.cprint(outstr)
-#
-#     def save_images(self):
-#         plt.figure(0)
-#         plt.clf()
-#         plt.scatter(train_true, train_pred)
-#         plt.xlabel("Train True")
-#         plt.ylabel("Train Pred")
-#         plt.savefig(self.checkpoint_path + "images/" + 'confusion_' + str(epoch) + '.png')
-#
-#         plt.figure(1)
-#         plt.clf()
-#         plt.plot(loss_history)
-#         plt.ylabel("Loss")
-#         plt.xlabel("Epoch")
-#         plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
-#
-#         plt.figure(2)
-#         plt.clf()
-#         plt.plot(res_train_history)
-#         plt.ylabel("Train R2")
-#         plt.xlabel("Epoch")
-#         plt.savefig(self.checkpoint_path + "images/" + 'r2_train.png')

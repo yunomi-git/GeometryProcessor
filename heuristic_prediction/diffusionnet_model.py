@@ -103,6 +103,7 @@ class DiffusionNetDataset(Dataset):
         # Already occuring
         # mesh_data.to(self.device)
         # TODO convert mesh data to device?
+        # TODO data gets permuted after batch
         # Randomly rotate positions
         if self.augment_random_rotate and self.is_training:
             mesh_data.verts = diffusion_net.utils.random_rotate_points(mesh_data.verts)
@@ -113,7 +114,7 @@ class DiffusionNetWrapper(nn.Module):
     def __init__(self, input_feature_type, num_outputs, C_width=128, N_block=4, last_activation=None,
                  outputs_at='vertices', mlp_hidden_dims=None, dropout=True, with_gradient_features=True,
                  with_gradient_rotations=True, diffusion_method='spectral'):
-
+        super(DiffusionNetWrapper, self).__init__()
         self.input_feature_type = input_feature_type
         C_in = {'xyz': 3, 'hks': 16}[self.input_feature_type]
 

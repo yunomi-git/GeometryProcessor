@@ -91,14 +91,14 @@ if __name__=="__main__":
 
     train_loader = DataLoader(DiffusionNetDataset(dataset_path, split_size, model_args["k_eig"],
                                                  filter_criteria=filter_criteria, op_cache_dir=op_cache_dir,
-                                                 data_fraction=args["data_fraction_test"], label_names=label_names,
+                                                 data_fraction=args["data_fraction"], label_names=label_names,
                                                  augment_random_rotate=args["augment_random_rotate"],
                                                  is_training=True),
                               num_workers=24,
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = DataLoader(DiffusionNetDataset(dataset_path, split_size, model_args["k_eig"],
                                                  filter_criteria=filter_criteria, op_cache_dir=op_cache_dir,
-                                                 data_fraction=args["data_fraction"], label_names=label_names,
+                                                 data_fraction=args["data_fraction_test"], label_names=label_names,
                                                  augment_random_rotate=args["augment_random_rotate"],
                                                  is_training=False),
                              num_workers=24,

@@ -190,6 +190,8 @@ class PointCloudDataset(Dataset):
         if self.partition == 'train':
             # pointcloud = dgcnn_data.translate_pointcloud(pointcloud)
             np.random.shuffle(pointcloud) # TODO note - this does not shuffle the original selection of points
+        # TODO check this:
+        pointcloud = pointcloud.permute(1, 0) # Order is [features, points]
         return pointcloud, label
 
     def __len__(self):
