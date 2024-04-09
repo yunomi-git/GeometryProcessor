@@ -79,7 +79,7 @@ class DGCNN_param(nn.Module):
         self.conv_list = nn.ModuleList()
 
         def create_conv_layer(input_channel, output_channel):
-            conv = nn.Sequential(nn.Conv2d(input_channel, output_channel, kernel_size=1, bias=False),
+            conv = nn.Sequential(nn.Conv2d(input_channel, output_channel, kernel_size=1, bias=True),
                                  nn.BatchNorm2d(output_channel),
                                  nn.LeakyReLU(negative_slope=0.2))
             return conv
@@ -91,7 +91,7 @@ class DGCNN_param(nn.Module):
             prev_output_channel_size = output_channel_size * 2
         # Last layer: concatenate all prev inputs and convert to embedding size
         concatenated_size = sum(self.conv_channel_sizes)
-        self.last_conv_layer = nn.Sequential(nn.Conv1d(concatenated_size, self.conv_emb_dims, kernel_size=1, bias=False),
+        self.last_conv_layer = nn.Sequential(nn.Conv1d(concatenated_size, self.conv_emb_dims, kernel_size=1, bias=True),
                                  nn.BatchNorm1d(self.conv_emb_dims),
                                  nn.LeakyReLU(negative_slope=0.2))
 
@@ -100,24 +100,23 @@ class DGCNN_param(nn.Module):
         self.linear_list = nn.ModuleList()
         self.linear_dropout_list = nn.ModuleList()
 
-        def add_linear_layer(input_size, output_size, first_layer=False):
-            if first_layer:
-                self.linear_list.append(nn.Linear(input_size, output_size, bias=False))
-            else:
-                self.linear_list.append(nn.Linear(input_size, output_size))
+        def add_linear_layer(input_size, output_size, bias=False):
+            self.linear_list.append(nn.Linear(input_size, output_size, bias=bias))
             self.linear_bn_list.append(nn.BatchNorm1d(output_size))
             self.linear_dropout_list.append(nn.Dropout(p=args['dropout']))
 
         # First layer:
-        add_linear_layer(self.conv_emb_dims * 2, self.linear_sizes[0], first_layer=True)
+        add_linear_layer(self.conv_emb_dims * 2, self.linear_sizes[0], bias=False)
         prev_layer_size = self.linear_sizes[0]
         for output_layer_size in self.linear_sizes[1:]:
-            add_linear_layer(input_size=prev_layer_size, output_size=output_layer_size)
+            add_linear_layer(input_size=prev_layer_size, output_size=output_layer_size, bias=True)
             prev_layer_size = output_layer_size
         # Last Layer
         self.last_linear_layer = nn.Linear(prev_layer_size, self.output_dim)
 
     def forward(self, x):
+        # x input is as batch x points x features. Convert to batch x features x points
+        x = torch.permute(x, (0, 2, 1))
         batch_size = x.size(0)
 
         # First do convolutions
@@ -142,6 +141,7 @@ class DGCNN_param(nn.Module):
             x = F.leaky_relu(self.linear_bn_list[i](self.linear_list[i](x)), negative_slope=0.2)
             x = self.linear_dropout_list[i](x)
         x = self.last_linear_layer(x)
+
         return x
 
 
@@ -207,6 +207,8 @@ class DGCNN_segment(nn.Module):
         # TODO should the last layer be conv2d or conv1d?
 
     def forward(self, x):
+        # x input is as batch x points x features. Convert to batch x features x points
+        x = torch.permute(x, (0, 2, 1))
         batch_size = x.size(0)
 
         # First do convolutions
@@ -238,4 +240,7 @@ class DGCNN_segment(nn.Module):
             x = mlp_layer(x)
         x = self.final_mlp_dropout(x)
         x = self.last_mlp_layer(x)
+
+        # Output as batch x points x features.
+        x = torch.permute(x, (0, 2, 1))
         return x

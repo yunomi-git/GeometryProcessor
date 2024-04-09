@@ -11,12 +11,10 @@ import util
 from util import IOStream
 import matplotlib.pyplot as plt
 
-
-
 class RegressionTools:
     def __init__(self, args, label_names, train_loader, test_loader, model, opt, scheduler=None, clip_parameters=False):
         self.device = torch.device("cuda")
-        self.seed_all(args["seed"])
+        # self.seed_all(args["seed"])
 
         self.model_name = type(model).__name__
         self.model = nn.DataParallel(model.to(self.device))
@@ -55,23 +53,13 @@ class RegressionTools:
         io = IOStream(self.checkpoint_path + 'run.log')
         return io
 
-    def seed_all(self, seed):
-        torch.cuda.empty_cache()
 
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        torch.cuda.manual_seed(seed)
-        torch.set_printoptions(10)
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
-        os.environ['PYTHONHASHSEED'] = str(seed) # What is this?
-        os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE" # What is this?
 
-    def train(self, args, do_test=True, plot_every_n_epoch=-1, transpose_inputs=True):
+    def train(self, args, do_test=True, plot_every_n_epoch=-1, outputs_at="global"):
         best_res_mag = 0
         loss_history = []
         res_train_history = []
+        labels = args["label_names"]
         for epoch in range(args['epochs']):
             ####################
             # Train
@@ -83,14 +71,13 @@ class RegressionTools:
             train_pred = []
             train_true = []
             with torch.enable_grad():
-                for batch_idx, (data, label) in enumerate(tqdm(self.train_loader)):
+                for batch_idx, (data, label, weight) in enumerate(tqdm(self.train_loader)):
                     data, label = data.to(self.device), label.to(self.device)
-                    # TODO permute only works for pointcloud networks. Is this the best place to put these?
-                    # if transpose_inputs:
-                    #     data = data.permute(0, 2, 1) # so, the input data shape is [batch, features, points]
+                    weight = weight.to(self.device)
+                    weight = torch.sqrt(weight)
 
                     preds = self.model(data)
-                    loss = self.loss_criterion(preds, label) / self.gradient_accumulation_steps
+                    loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
                     loss.backward()
 
                     if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
@@ -109,7 +96,16 @@ class RegressionTools:
                 self.scheduler.step()
 
             train_true = np.concatenate(train_true)
-            train_pred = np.concatenate(train_pred) # for vertices, outputs as batch x dim x points. swap to batch*points x dim
+            train_pred = np.concatenate(train_pred)
+
+            # for vertices, outputs as batch x dim x points. swap to batch*points x dim
+            if outputs_at == "vertices":
+                train_true = train_true.reshape(
+                    (train_true.shape[0] * train_true.shape[1], train_true.shape[2]),
+                    order="F")
+                train_pred = train_pred.reshape(
+                    (train_pred.shape[0] * train_pred.shape[1], train_pred.shape[2]),
+                    order="F")
 
             res = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values') #num_val x dims
             acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.05)
@@ -126,14 +122,29 @@ class RegressionTools:
             res_train_history.append(res)
 
             # Loss
-            # TODO Save these pictures per feature
             if plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0:
                 plt.figure(0)
                 plt.clf()
-                plt.scatter(train_true, train_pred)
-                plt.xlabel("Train True")
-                plt.ylabel("Train Pred")
+                for i in range(len(res)):
+                    plt.subplot(len(res), 1, i+1)
+                    plt.scatter(train_true[:, i], train_pred[:, i] - train_true[:, i])
+                    plt.hlines(y=0, xmin=min(train_true[:, i]), xmax=max(train_true[:, i]), color="red")
+                    plt.xlabel("Train True")
+                    plt.ylabel(labels[i] + " Error")
+
                 plt.savefig(self.checkpoint_path + "images/" + 'confusion_' + str(epoch) + '.png')
+
+                plt.figure(2)
+                plt.clf()
+
+                for i in range(len(res)):
+                    res_history = np.array(res_train_history)
+                    plt.subplot(len(res), 1, i+1)
+                    plt.plot(res_history[:, i])
+                    plt.ylabel(labels[i] + " Train R2")
+                    plt.xlabel("Epoch")
+
+                plt.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
 
                 plt.figure(1)
                 plt.clf()
@@ -142,12 +153,7 @@ class RegressionTools:
                 plt.xlabel("Epoch")
                 plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
 
-                plt.figure(2)
-                plt.clf()
-                plt.plot(res_train_history)
-                plt.ylabel("Train R2")
-                plt.xlabel("Epoch")
-                plt.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
+
 
             ####################
             # Test
@@ -159,12 +165,15 @@ class RegressionTools:
                 test_pred = []
                 test_true = []
                 with torch.no_grad():
-                    for data, label in tqdm(self.test_loader):
+                    for data, label, weight in tqdm(self.test_loader):
                         data, label = data.to(self.device), label.to(self.device)
-                        data = data.permute(0, 2, 1)
-                        batch_size = data.size()[0]
+                        weight = weight.to(self.device)
+                        weight = torch.sqrt(weight)
+                        # data = data.permute(0, 2, 1)
                         preds = self.model(data)
-                        loss = self.loss_criterion(preds, label)
+                        loss = self.loss_criterion(weight * preds, weight * label)
+
+                        batch_size = data.size()[0]
                         count += batch_size
                         test_loss += loss.item() * batch_size
                         test_true.append(label.cpu().numpy())
@@ -172,6 +181,15 @@ class RegressionTools:
 
                 test_true = np.concatenate(test_true)
                 test_pred = np.concatenate(test_pred)
+
+                if outputs_at == "vertices":
+                    test_true = test_true.reshape(
+                        (test_true.shape[0] * test_true.shape[1], test_true.shape[2]),
+                        order="F")
+                    test_pred = test_pred.reshape(
+                        (test_pred.shape[0] * test_pred.shape[1], test_pred.shape[2]),
+                        order="F")
+
                 res = metrics.r2_score(y_true=test_true, y_pred=test_pred, multioutput='raw_values')
                 outstr = '--\n\tTest: \n\t\tLoss: %.6f \n\t\tr2: %s\n=========' % (test_loss * 1.0 / count, str(res))
                 self.io.cprint(outstr)
@@ -199,7 +217,18 @@ def succinct_label_save_name(label_names):
         out += name[:5] + "-"
     return out
 
+def seed_all(seed):
+    torch.cuda.empty_cache()
 
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.cuda.manual_seed(seed)
+    torch.set_printoptions(10)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    os.environ['PYTHONHASHSEED'] = str(seed) # What is this?
+    os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE" # What is this?
 # class TrainingLogger:
 #     def __init__(self, save_path):
 #         self.save_path = save_path

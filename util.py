@@ -7,7 +7,8 @@ from datetime import datetime
 def normalize_minmax_01(array: np.ndarray):
     copy = array.copy()
     copy -= np.amin(copy)
-    copy /= np.amax(copy)
+    if np.amax(copy) != 0:
+        copy /= np.amax(copy)
     return copy
 
 def normalize_max_1(array: np.ndarray):
@@ -29,7 +30,7 @@ def direction_to_color(direction):
 
 def get_date_name():
     current = datetime.now()
-    encode = "%d%d_%d%d" % (current.month, current.day, current.hour, current.minute)
+    encode = "%d%d_%d_%d" % (current.month, current.day, current.hour, current.minute)
     return encode
 
 def get_indices_of_conditional(conditional_array):

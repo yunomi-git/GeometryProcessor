@@ -3,7 +3,7 @@ import trimesh
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from dataset.process_and_save import MeshDatasetFileManager, get_augmented_mesh
-
+from dataset.imbalanced_data import get_imbalanced_weight_nd
 
 def load_point_clouds_numpy(data_root_dir, num_points, label_names,
                             data_fraction=1.0, sampling_method="mixed", outputs_at="global"):
@@ -61,7 +61,8 @@ def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_crit
 
 class PointCloudDataset(Dataset):
     def __init__(self, data_root_dir, num_points, label_names, partition='train', filter_criteria=None, outputs_at="global",
-                 use_augmentations=True, data_fraction=1.0, use_numpy=True, normalize=False, sampling_method="mixed"):
+                 use_augmentations=True, data_fraction=1.0, use_numpy=True, normalize=False, sampling_method="mixed",
+                 imbalance_weight_num_bins=1, normalize_outputs=False):
         # filter_criteria of the form filter_criteria(mesh, instance_data)->boolean
         self.outputs_at = outputs_at
         if use_numpy:
@@ -108,6 +109,15 @@ class PointCloudDataset(Dataset):
             self.normalization_order = 3
             self.label = self.label * np.repeat(np.power(self.normalization_scale, self.normalization_order)[:, np.newaxis], len(self.label[0]), axis=1)
 
+        if normalize_outputs:
+            length = np.max(self.label, axis=0) - np.min(self.label, axis=0)
+            center = np.mean(self.label, axis=0)
+            self.label = (self.label - center) / length
+
+        self.weights = None
+        if imbalance_weight_num_bins > 1:
+            self.weights = get_imbalanced_weight_nd(self.label, num_bins=imbalance_weight_num_bins, modifier=None)
+            # self.weights = np.sqrt(self.weights)
 
         self.num_points = num_points
         self.partition = partition
@@ -115,6 +125,9 @@ class PointCloudDataset(Dataset):
     def __getitem__(self, item):
         pointcloud = self.point_clouds[item]
         label = self.label[item]
+        weight = 1
+        if self.weights is not None:
+            weight = self.weights[item]
 
         # Grab random num_points from the point cloud
         if self.partition == 'train':
@@ -125,11 +138,11 @@ class PointCloudDataset(Dataset):
 
         if self.outputs_at == "vertices":
             label = label[p]
-            label = np.transpose(label, (1, 0))
+            # label = np.transpose(label, (1, 0))
         pointcloud = pointcloud[p]
-        pointcloud = np.transpose(pointcloud, (1, 0))
+        # pointcloud = np.transpose(pointcloud, (1, 0))
 
-        return pointcloud, label
+        return pointcloud, label, weight
 
     def __len__(self):
         return self.point_clouds.shape[0]

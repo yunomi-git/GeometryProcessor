@@ -319,7 +319,7 @@ def show_sampled_values(mesh, points, values, normalize=True, scale=None):
         if normalize:
             values = util.normalize_minmax_01(values)
         elif scale is not None:
-            values[values < scale[1]] = scale[1]
+            values[values > scale[1]] = scale[1]
             values[values < scale[0]] = scale[0]
 
         cmapname = 'jet'
