@@ -127,7 +127,7 @@ class RegressionTools:
                 plt.clf()
                 for i in range(len(res)):
                     plt.subplot(len(res), 1, i+1)
-                    plt.scatter(train_true[:, i], train_pred[:, i] - train_true[:, i])
+                    plt.scatter(train_true[:, i], train_pred[:, i] - train_true[:, i], alpha=0.15)
                     plt.hlines(y=0, xmin=min(train_true[:, i]), xmax=max(train_true[:, i]), color="red")
                     plt.xlabel("Train True")
                     plt.ylabel(labels[i] + " Error")

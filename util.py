@@ -3,6 +3,7 @@ import time
 import numpy as np
 import math
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 def normalize_minmax_01(array: np.ndarray):
     copy = array.copy()
@@ -28,12 +29,37 @@ def direction_to_color(direction):
     num_val = len(direction)
     return np.stack((yaw, pitch, roll, np.ones(num_val))).T
 
+def z_normal_to_color(direction):
+    horiz_dir = np.sqrt(direction[:, 1] ** 2, direction[:, 0] ** 2)
+    pitch = np.arctan2(direction[:, 2], horiz_dir) / (np.pi / 1.0) + 0.5
+    # roll = np.arctan2(direction[:, 0], direction[:, 2]) / 2.0 / np.pi + 0.5
+    # num_val = len(direction)
+    cmapname = 'jet'
+    cmap = plt.get_cmap(cmapname)
+    colors = 255.0 * cmap(pitch)
+    colors[:, 3] = int(1.0 * 255)
+    return colors
+
+def z_normal_mag_to_color(direction):
+    horiz_dir = np.sqrt(direction[:, 1]**2 + direction[:, 0] ** 2)
+    vert_dir = direction[:, 2]
+    pitch = np.arctan2(vert_dir, horiz_dir)  # range -pi/2, pi/2
+    pitch = np.abs(pitch) / (np.pi / 2) # range is 0, pi/2. change to 0, 1
+    cmapname = 'jet'
+    cmap = plt.get_cmap(cmapname)
+    colors = 255.0 * cmap(pitch)
+    colors[:, 3] = int(1.0 * 255)
+    return colors
+
+    # return np.stack((pitch / 2.0, pitch, pitch / 2.0, np.ones(num_val))).T
+
 def get_date_name():
     current = datetime.now()
     encode = "%d%d_%d_%d" % (current.month, current.day, current.hour, current.minute)
     return encode
 
 def get_indices_of_conditional(conditional_array):
+    # This only works for 1d.
     size = len(conditional_array)
     indices = np.arange(0, size)
     return indices[conditional_array]

@@ -283,8 +283,9 @@ class MeshAuxilliaryInfo:
     def get_transformed_mesh(self, scale=1.0, orientation=np.array([0, 0, 0])):
         return MeshAuxilliaryInfo(get_transformed_mesh(self.mesh, scale=scale, orientation=orientation))
 
-def get_transformed_mesh(mesh: trimesh.Trimesh, scale=1.0, translation=np.array([0, 0, 0]),
-                         orientation=np.array([0, 0, 0])):
+def create_transform_matrix(scale=1.0,
+                            translation=np.array([0, 0, 0]),
+                            orientation=np.array([0, 0, 0])):
     # Order applied: translate, rotate, scale
     # orientation as [x, y, z]
     r = R.from_euler('zyx', [orientation[2], orientation[1], orientation[0]]).as_matrix()
@@ -296,6 +297,22 @@ def get_transformed_mesh(mesh: trimesh.Trimesh, scale=1.0, translation=np.array(
     trans_matrix[:3, 3] = translation
 
     transform_matrix = scale_matrix @ (rot_matrix @ trans_matrix)
+    return transform_matrix
+
+
+def get_transformed_mesh(mesh: trimesh.Trimesh, scale=1.0, translation=np.array([0, 0, 0]),
+                         orientation=np.array([0, 0, 0])):
+    # Order applied: translate, rotate, scale
+    # orientation as [x, y, z]
+    # r = R.from_euler('zyx', [orientation[2], orientation[1], orientation[0]]).as_matrix()
+    # rot_matrix = np.zeros((4, 4))
+    # rot_matrix[:3, :3] = r
+    # rot_matrix[3, 3] = 1.0
+    # scale_matrix = np.diag([scale, scale, scale, 1.0])
+    # trans_matrix = np.eye(4)
+    # trans_matrix[:3, 3] = translation
+
+    transform_matrix = create_transform_matrix(scale, translation, orientation)
     mesh_copy = mesh.copy()
     mesh_copy.apply_transform(transform_matrix.astype(np.float32))
     return mesh_copy
@@ -347,7 +364,7 @@ def show_mesh_with_normals(mesh, points, normals):
 
 def show_mesh_with_facet_colors(mesh, values: np.ndarray, normalize=True):
     s = trimesh.Scene()
-
+    set_default_camera(s, mesh)
     cmapname = 'jet'
     cmap = plt.get_cmap(cmapname)
     empty_color = np.array([100, 100, 100, 255])
@@ -360,9 +377,29 @@ def show_mesh_with_facet_colors(mesh, values: np.ndarray, normalize=True):
     s.add_geometry(mesh)
     s.show()
 
+def set_default_camera(scene: trimesh.Scene, mesh: trimesh.Trimesh):
+    # y_min = mesh.bounds[0, 1]
+    # y_max = mesh.bounds[1, 1]
+    width = mesh.bounds[1, 1] - mesh.bounds[0, 1]
+    height = mesh.bounds[1, 2] - mesh.bounds[0, 2]
+    centroid = mesh.centroid
+    camera_offset = np.array([0, -width * 2 - height, 0])
+    orientation = np.array([np.pi / 2, 0, 0])
+    orientation_transform = create_transform_matrix(orientation=orientation)
+    translation_transform = create_transform_matrix(translation=centroid + camera_offset)
+    # s.camera_transform = create_transform_matrix(translation=bb_center + position, orientation=orientation)
+    scene.camera_transform = translation_transform @ orientation_transform
+
 def show_mesh(mesh):
     s = trimesh.Scene()
+    set_default_camera(s, mesh)
     s.add_geometry(mesh)
+    s.show()
+
+def show_meshes(meshes):
+    s = trimesh.Scene()
+    for mesh in meshes:
+        s.add_geometry(mesh)
     s.show()
 
 def show_mesh_with_orientation(mesh):
@@ -370,20 +407,19 @@ def show_mesh_with_orientation(mesh):
     colors = util.direction_to_color(mesh_aux.facet_normals)
     mesh.visual.face_colors = colors
     s = trimesh.Scene()
+    set_default_camera(s, mesh)
     s.add_geometry(mesh)
     s.show()
 
-# class TrimeshSceneGrid:
-#      def __init__(self, length, width):
-#          self.length = length
-#          self.width = width
-#          self.scene = trimesh.Scene()
-#
-#      def add_mesh(self, mesh, gridx, gridy):
-#          x_position = gridx * self.width
-#          y_position = gridy * self.length
-#
+def show_mesh_with_z_normal(mesh):
+    mesh_aux = MeshAuxilliaryInfo(mesh)
+    colors = util.z_normal_mag_to_color(mesh_aux.facet_normals)
+    mesh.visual.face_colors = colors
 
+    s = trimesh.Scene()
+    set_default_camera(s, mesh)
+    s.add_geometry(mesh)
+    s.show()
 
 if __name__=="__main__":
     print("hi")

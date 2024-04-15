@@ -16,8 +16,8 @@ label_names = [
     # "thickness_violation",
     # "gap_violation",
     # "volume",
-    "surface_area"
-    # "thickness",
+    # "surface_area"
+    "thickness",
     # "nx",
     # "ny",
     # "nz"
@@ -31,7 +31,7 @@ model_args = {
     "num_outputs": len(label_names),
     "k": 20,
     "dropout": 0.2,
-    "outputs_at": "global"
+    "outputs_at": "vertices"
 }
 
 experiment_name = succinct_label_save_name(label_names)
@@ -47,9 +47,10 @@ args = {
     "grad_acc_steps": 4,
     "normalize_inputs": False,
     "sampling_method": "mixed",
-    "imbalanced_weighting_bins": 5, #1 means no weighting
+    "imbalanced_weighting_bins": 1, #1 means no weighting
     "do_test": False,
     "normalize_outputs": False,
+    "remove_outlier_ratio": 0.1, # 0 means remove no outliers
 
     # Opt Param
     "batch_size": 8,
@@ -76,7 +77,8 @@ if __name__ == "__main__":
                                                 normalize_outputs=args["normalize_outputs"],
                                                 sampling_method=args["sampling_method"],
                                                 outputs_at=args["outputs_at"],
-                                                imbalance_weight_num_bins=args["imbalanced_weighting_bins"]),
+                                                imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
+                                                remove_outlier_ratio=args["remove_outlier_ratio"]),
                               num_workers=24,
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
@@ -87,7 +89,8 @@ if __name__ == "__main__":
                                                normalize_outputs=False,
                                                sampling_method=args["sampling_method"],
                                                outputs_at=args["outputs_at"],
-                                               imbalance_weight_num_bins=args["imbalanced_weighting_bins"]),
+                                               imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
+                                               remove_outlier_ratio=args["remove_outlier_ratio"]),
                              num_workers=24,
                              batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 

@@ -6,14 +6,17 @@ import numpy as np
 from pytorch3d.structures.meshes import Meshes
 import torch
 import torch.nn.functional as f
+import matplotlib.pyplot as plt
 # Referencs: https://pytorch3d.readthedocs.io/en/latest/_modules/pytorch3d/loss/mesh_normal_consistency.html
+
+torch.cuda.empty_cache()
 
 def get_threshold_penalty(x_warn, x_fail, crossover=0.05):
     # Function is 1/ 1 + exp(-a (x + b)). We need to solve for a and b
     cross_warn = np.log(1.0 / crossover - 1)
     cross_fail = np.log(1.0 / (1 - crossover) - 1)
     a = (cross_warn - cross_fail) / (x_fail - x_warn)
-    b = (cross_warn * x_fail - x_fail * x_warn) / (cross_fail - cross_warn)
+    b = (cross_warn * x_fail - cross_fail * x_warn) / (cross_fail - cross_warn)
     penalty_func = lambda x: 1.0 / (1 + torch.exp(-a * (x + b)))
     return penalty_func
 
@@ -48,40 +51,91 @@ def calculate_normals_differentiable(meshes: Meshes):
 
     verts_packed = meshes.verts_packed()  # (sum(V_n), 3)
     faces_packed = meshes.faces_packed()  # (sum(F_n), 3)
-    # edges_packed = meshes.edges_packed()  # (sum(E_n), 2)
-    verts_packed_to_mesh_idx = meshes.verts_packed_to_mesh_idx()  # (sum(V_n),)
 
     v0 = verts_packed[faces_packed[:, 0]]
     v1 = verts_packed[faces_packed[:, 1]]
     v2 = verts_packed[faces_packed[:, 2]]
 
+    # if (torch.isnan(verts_packed).any()):
+    #     print("nan")
+
     n0 = torch.cross(v1-v0, v0-v2, dim=1)
+    # if (torch.eq(torch.norm(n0), 0).any()):
+    #     print(torch.where(torch.eq(torch.norm(n0), 0)))
     normals = -f.normalize(n0, p=2, dim=1)
+    if (torch.isnan(normals).any()):
+        print("normals nan")
+
     areas = torch.linalg.vector_norm(n0, dim=1)
     return normals, areas
 
-
-    # loss = 1 - torch.cosine_similarity(n0, n1, dim=1)
-
-    # verts_packed_to_mesh_idx = verts_packed_to_mesh_idx[vert_idx[:, 0]]
-    # verts_packed_to_mesh_idx = verts_packed_to_mesh_idx[vert_edge_pair_idx[:, 0]]
-    # num_normals = verts_packed_to_mesh_idx.bincount(minlength=N)
-    # weights = 1.0 / num_normals[verts_packed_to_mesh_idx].float()
-
-    # loss = loss * weights
-    # return loss.sum() / N
-
 def normals_to_cost_differentiable(normals):
     # Need to normalize the normals
-
     normals_z = normals[:, 2]
     angles = torch.arcsin(normals_z)  # arcsin calculates overhang angles as < 0
     # samples_above_floor = vertices[:, 2] >= (layer_height + self.bound_lower[2])
     # angles = angles[samples_above_floor]
     loss_func = get_threshold_penalty(x_warn=-torch.pi/4, x_fail=-torch.pi/2, crossover=0.05)
     loss = loss_func(angles)
-    loss = torch.sum(loss)
+    loss = torch.mean(loss)
     return loss
+
+def loss_mesh_overhangs(meshes: Meshes):
+    normals, _ = calculate_normals_differentiable(meshes)
+    normals_z = normals[:, 2]
+    angles = torch.arcsin(normals_z)  # arcsin calculates overhang angles as < 0
+    layer_height = 0.04
+
+    verts_packed = meshes.verts_packed()  # (sum(V_n), 3)
+    faces_packed = meshes.faces_packed()  # (sum(F_n), 3)
+
+    v0 = verts_packed[faces_packed[:, 0]]
+    v1 = verts_packed[faces_packed[:, 1]]
+    v2 = verts_packed[faces_packed[:, 2]]
+
+    min_height = torch.min(verts_packed[:, 2])
+    floor_height = layer_height + min_height
+
+    # samples_above_floor = torch.gt(v0[:, 2], floor_height)
+    # samples_above_floor = torch.logical_and(samples_above_floor, torch.gt(v1[:, 2], floor_height))
+    # samples_above_floor = torch.logical_and(samples_above_floor, torch.gt(v2[:, 2], floor_height))
+
+    # angles = angles[samples_above_floor]
+    # print("Num points removed: ", len(faces_packed) - len(angles))
+    loss_func = get_threshold_penalty(x_warn=-torch.pi / 4, x_fail=-torch.pi / 2, crossover=0.01)
+    overhang_loss = loss_func(angles)
+
+    # Create another penalty based on floor height
+    floor_height_loss_func = get_threshold_penalty(x_warn=min_height, x_fail=min_height + layer_height, crossover=0.05)
+    floor_loss = floor_height_loss_func(v0[:, 2]) * floor_height_loss_func(v1[:, 2]) * floor_height_loss_func(v2[:, 2])
+    # floor_loss = (floor_height_loss_func(v0[:, 2]) + floor_height_loss_func(v1[:, 2]) + floor_height_loss_func(v2[:, 2])) / 3.0
+    # loss = floor_loss
+    loss = floor_loss * overhang_loss
+    # loss = overhang_loss
+
+    loss = torch.mean(loss)
+    # TODO: ignore first layer
+    return loss
+
+def loss_mesh_stairsteps(meshes: Meshes):
+    normals, _ = calculate_normals_differentiable(meshes)
+    normals_z = normals[:, 2]
+    angles = torch.arcsin(normals_z)  # arcsin calculates overhang angles as < 0
+
+    # This one punishes high angles
+    loss_func = get_threshold_penalty(x_warn=torch.pi / 4, x_fail=torch.pi / 2 * 0.90, crossover=0.01)
+    # This one ignores flats
+    loss_func_2 = get_threshold_penalty(x_warn=torch.pi/2 * 0.95, x_fail=torch.pi / 2 * 0.90, crossover=0.01)
+    # loss = loss_func(angles) * loss_func_2(angles)
+    # loss = loss_func(angles) # TODO this in't working yet
+    loss = loss_func_2(angles)
+    loss = torch.mean(loss)
+    # TODO: ignore flat
+    return loss
+
+
+
+
 
 
 if __name__=="__main__":

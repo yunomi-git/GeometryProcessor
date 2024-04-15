@@ -3,7 +3,7 @@ import trimesh
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from dataset.process_and_save import MeshDatasetFileManager, get_augmented_mesh
-from dataset.imbalanced_data import get_imbalanced_weight_nd
+from dataset.imbalanced_data import get_imbalanced_weight_nd, non_outlier_indices, non_outlier_indices_vertices_nclass
 
 def load_point_clouds_numpy(data_root_dir, num_points, label_names,
                             data_fraction=1.0, sampling_method="mixed", outputs_at="global"):
@@ -62,7 +62,7 @@ def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_crit
 class PointCloudDataset(Dataset):
     def __init__(self, data_root_dir, num_points, label_names, partition='train', filter_criteria=None, outputs_at="global",
                  use_augmentations=True, data_fraction=1.0, use_numpy=True, normalize=False, sampling_method="mixed",
-                 imbalance_weight_num_bins=1, normalize_outputs=False):
+                 imbalance_weight_num_bins=1, normalize_outputs=False, remove_outlier_ratio=0.05):
         # filter_criteria of the form filter_criteria(mesh, instance_data)->boolean
         self.outputs_at = outputs_at
         if use_numpy:
@@ -113,6 +113,19 @@ class PointCloudDataset(Dataset):
             length = np.max(self.label, axis=0) - np.min(self.label, axis=0)
             center = np.mean(self.label, axis=0)
             self.label = (self.label - center) / length
+
+        if remove_outlier_ratio > 0.0:
+            if outputs_at == "global":
+                keep_indices = non_outlier_indices(self.label, num_bins=10,
+                                                   threshold_ratio_to_remove=remove_outlier_ratio)
+            else: # vertices
+                keep_indices = non_outlier_indices_vertices_nclass(self.label, num_bins=10,
+                                                                   threshold_ratio_to_remove=remove_outlier_ratio)
+            original_length = len(self.label)
+            self.point_clouds = self.point_clouds[keep_indices]
+            self.label = self.label[keep_indices]
+            new_length = len(self.label)
+            print("Removed", original_length - new_length, "outliers.")
 
         self.weights = None
         if imbalance_weight_num_bins > 1:
