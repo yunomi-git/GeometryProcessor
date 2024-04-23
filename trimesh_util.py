@@ -36,7 +36,7 @@ class MeshAuxilliaryInfo:
         self.facet_centroids = mesh.triangles_center
         self.facet_normals = mesh.face_normals
         self.facet_areas = mesh.area_faces
-        self.surface_area = np.sum(self.facet_areas)
+        self.surface_area = mesh.area
         self.num_facets = len(self.facet_centroids)
         self.facets = mesh.faces
         self.facet_defects = None
@@ -281,9 +281,9 @@ class MeshAuxilliaryInfo:
         return gap_sizes
 
     def get_transformed_mesh(self, scale=1.0, orientation=np.array([0, 0, 0])):
-        return MeshAuxilliaryInfo(get_transformed_mesh(self.mesh, scale=scale, orientation=orientation))
+        return MeshAuxilliaryInfo(get_transformed_mesh_trs(self.mesh, scale=scale, orientation=orientation))
 
-def create_transform_matrix(scale=1.0,
+def create_transform_matrix(scale=np.array([1, 1, 1]),
                             translation=np.array([0, 0, 0]),
                             orientation=np.array([0, 0, 0])):
     # Order applied: translate, rotate, scale
@@ -292,7 +292,7 @@ def create_transform_matrix(scale=1.0,
     rot_matrix = np.zeros((4, 4))
     rot_matrix[:3, :3] = r
     rot_matrix[3, 3] = 1.0
-    scale_matrix = np.diag([scale, scale, scale, 1.0])
+    scale_matrix = np.diag([scale[0], scale[1], scale[2], 1.0])
     trans_matrix = np.eye(4)
     trans_matrix[:3, 3] = translation
 
@@ -300,8 +300,8 @@ def create_transform_matrix(scale=1.0,
     return transform_matrix
 
 
-def get_transformed_mesh(mesh: trimesh.Trimesh, scale=1.0, translation=np.array([0, 0, 0]),
-                         orientation=np.array([0, 0, 0])):
+def get_transformed_mesh_trs(mesh: trimesh.Trimesh, scale=np.array([1, 1, 1]), translation=np.array([0, 0, 0]),
+                             orientation=np.array([0, 0, 0])):
     # Order applied: translate, rotate, scale
     # orientation as [x, y, z]
     # r = R.from_euler('zyx', [orientation[2], orientation[1], orientation[0]]).as_matrix()
@@ -311,6 +311,8 @@ def get_transformed_mesh(mesh: trimesh.Trimesh, scale=1.0, translation=np.array(
     # scale_matrix = np.diag([scale, scale, scale, 1.0])
     # trans_matrix = np.eye(4)
     # trans_matrix[:3, 3] = translation
+    if isinstance(scale, float):
+        scale = np.array([scale, scale, scale])
 
     transform_matrix = create_transform_matrix(scale, translation, orientation)
     mesh_copy = mesh.copy()

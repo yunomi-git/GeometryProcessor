@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="GeometryProcessor" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="GeometryProcessor311" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="GeometryProcessor" project-jdk-type="Python SDK" />
 </project>

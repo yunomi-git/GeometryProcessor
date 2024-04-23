@@ -153,7 +153,7 @@ def get_augmented_mesh(mesh: trimesh.Trimesh, augmentations):
     eulers = [orientation["x"], orientation["y"], orientation["z"]]
     scale = augmentations["scale"]
 
-    transformed_mesh = trimesh_util.get_transformed_mesh(mesh, scale=scale, orientation=eulers)
+    transformed_mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=scale, orientation=eulers)
 
     return transformed_mesh
 
@@ -236,7 +236,7 @@ def calculate_and_append_augmentation(mesh: trimesh.Trimesh, target: dict, augme
     normalization_translation = -np.array([centroid[0], centroid[1], min_bounds[2]])
     scale = max(mesh_aux.bound_length)
     normalization_scale = 1.0 / scale
-    mesh = trimesh_util.get_transformed_mesh(mesh, scale=normalization_scale, translation=normalization_translation)
+    mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
 
     instance_target = calculate_instance_target(mesh, augmentations=augmentations)
     target["instances"].append(instance_target)
@@ -275,7 +275,7 @@ def generate_base_dataset(data_root_dir, source_mesh_filenames, save_prefix, mes
             scale = max(mesh_aux.bound_length)
             normalization_scale = 1.0 / scale
 
-        mesh = trimesh_util.get_transformed_mesh(mesh, scale=normalization_scale, translation=normalization_translation)
+        mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
 
         mesh.apply_scale(mesh_scale)
         try:
@@ -358,7 +358,7 @@ def save_generated_dataset_as_numpy(file_manager, max_mesh_per_file, num_points_
             try:
                 mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
                 vertices, normals, face_ids = mesh_aux.sample_and_get_normals(count=int(num_points_to_sample * 1.2), # Scaling is for thickness calculation failures
-                                                                          use_weight="mixed", return_face_ids=True)
+                                                                          use_weight=sampling_method, return_face_ids=True)
                 _, thicknesses, num_hits = mesh_aux.calculate_thickness_at_points(points=vertices, normals=normals)
                 _, curvature = mesh_aux.calculate_curvature_at_points(origins=vertices, face_ids=face_ids,
                                                                       curvature_method="defect")
@@ -399,7 +399,7 @@ def save_generated_dataset_as_numpy(file_manager, max_mesh_per_file, num_points_
     print("Total number of point clouds processed: ", len(all_point_clouds))
 
     # Save these
-    save_path = file_manager.get_numpy_pointcloud_path(absolute=True)
+    save_path = file_manager.get_numpy_pointcloud_path(absolute=True, sampling_method=sampling_method)
     num_files_to_split = int(len(all_point_clouds) / max_mesh_per_file) + 1
     pointcloud_file_names = []
     target_file_names = []
@@ -448,7 +448,7 @@ if __name__ == "__main__":
     # quick_edit(paths.HOME_PATH + "data_augmentations/")
     # 1/0
     # Generation Parameters
-    outputs_save_path = paths.DATA_PATH + "data_th5k_norm/"
+    outputs_save_path = paths.DATA_PATH + "data_mini/"
 
     mode = "convert_numpy" # generate_initial, add_augmentations, both, convert_numpy
     if mode == "generate_initial" or mode == "both":
@@ -465,7 +465,7 @@ if __name__ == "__main__":
                 source_mesh_filenames.append(paths.get_onshape_stl_path(i, get_by_order=True))
         else:
             min_range = 0
-            max_range = 5000
+            max_range = 300
             mesh_scale = 1.0
             prefix = "thing"
             for i in range(min_range, max_range):

@@ -14,8 +14,8 @@ if __name__ == "__main__":
     if mode == "single":
         # Single STL
         # mesh_path = paths.get_onshape_stl_path(233)
-        mesh_path = paths.get_thingiverse_stl_path(258, get_by_order=True)
-        # mesh_path = paths.HOME_PATH + 'stls/crane.stl'
+        # mesh_path = paths.get_thingiverse_stl_path(258, get_by_order=True)
+        mesh_path = paths.HOME_PATH + 'stls/Cone.stl'
         mesh = trimesh.load(mesh_path)
         # trimesh_util.show_mesh(mesh)
         #

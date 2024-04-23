@@ -35,9 +35,9 @@ if __name__ == "__main__":
     # Orient if needed
     orientation = np.array([0, np.pi/2, 0])
     # orientation = np.array([0, 0.0, 0])
-    mesh = trimesh_util.get_transformed_mesh(mesh, scale=normalization_scale,
-                                             translation=normalization_translation,
-                                             orientation=orientation)
+    mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale,
+                                                 translation=normalization_translation,
+                                                 orientation=orientation)
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
     device = torch.device("cuda")
