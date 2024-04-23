@@ -10,7 +10,7 @@ import util
 from process_and_save import calculate_instance_target, get_augmented_mesh
 
 if __name__ == "__main__":
-    mode = "single" # single or multi
+    mode = "multi" # single or multi
     if mode == "single":
         # Single STL
         # mesh_path = paths.get_onshape_stl_path(233)
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         #
         trimesh_util.show_sampled_values(mesh, points, values)
     else:
-        file_manager = MeshDatasetFileManager(paths.HOME_PATH + "data2/")
+        file_manager = MeshDatasetFileManager(paths.DATA_PATH + "data_th5k_norm/")
         mesh_paths = file_manager.get_mesh_files(absolute=True)
         num_meshes = len(mesh_paths)
         timer = util.Stopwatch()

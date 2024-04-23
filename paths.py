@@ -47,7 +47,7 @@ def get_thingiverse_stl_path(i, get_by_order=True):
     # 5743 face mug organic
     # 4820 order, polar bear
     if get_by_order:
-        contents = os.listdir(THINGIVERSE_STL_PATH)
+        contents = os.listdir(THINGIVERSE_STL_PATH)qqq
         contents.sort()
         # print(contents[i])
         return THINGIVERSE_STL_PATH + contents[i]
