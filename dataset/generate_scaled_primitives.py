@@ -4,7 +4,7 @@ import paths
 import numpy as np
 from pathlib import Path
 if __name__=="__main__":
-    save_path = paths.DATA_PATH + "data_primitives/"
+    save_path = paths.HOME_PATH + "../dataset_primitives/"
     Path(save_path).mkdir(exist_ok=True)
     primitive_name = "Cone"
     primitive_path = paths.HOME_PATH + "stls/" + primitive_name + ".stl"

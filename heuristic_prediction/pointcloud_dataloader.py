@@ -91,6 +91,7 @@ class PointCloudDataset(Dataset):
                                                                      sampling_method=sampling_method)
         # Normalize each target
         if normalize:
+            print("Warning: should not set normalize flag of PointCloudDataset anymore")
             # Normalize inputs
             # First get bounding boxes
             bound_max = np.max(self.point_clouds, axis=1)
@@ -110,6 +111,7 @@ class PointCloudDataset(Dataset):
             self.label = self.label * np.repeat(np.power(self.normalization_scale, self.normalization_order)[:, np.newaxis], len(self.label[0]), axis=1)
 
         if normalize_outputs:
+            print("Warning: should not set normalize_outputs flag of PointCloudDataset anymore")
             length = np.max(self.label, axis=0) - np.min(self.label, axis=0)
             center = np.mean(self.label, axis=0)
             self.label = (self.label - center) / length

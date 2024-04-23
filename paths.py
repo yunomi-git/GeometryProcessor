@@ -1,10 +1,11 @@
 import os
-# import tkinter.filedialog
-# from tkinter import Tk     # from tkinter import Tk for Python 3.x
-# from tkinter.filedialog import askopenfilename
+import tkinter.filedialog
+from tkinter import Tk     # from tkinter import Tk for Python 3.x
+from tkinter.filedialog import askopenfilename
 # import torch
 
 HOME_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
+MODELS_PATH = HOME_PATH + "heuristic_prediction/checkpoints/"
 ONSHAPE_STL_PATH = HOME_PATH + "../Onshape_STL_Dataset/"
 # THINGIVERSE_STL_PATH = HOME_PATH + "../Thingiverse_STL_Dataset/"
 THINGIVERSE_STL_PATH = HOME_PATH + "../Dataset_Thingiverse_10k/"
@@ -47,7 +48,7 @@ def get_thingiverse_stl_path(i, get_by_order=True):
     # 5743 face mug organic
     # 4820 order, polar bear
     if get_by_order:
-        contents = os.listdir(THINGIVERSE_STL_PATH)qqq
+        contents = os.listdir(THINGIVERSE_STL_PATH)
         contents.sort()
         # print(contents[i])
         return THINGIVERSE_STL_PATH + contents[i]
@@ -55,15 +56,18 @@ def get_thingiverse_stl_path(i, get_by_order=True):
         return THINGIVERSE_STL_PATH + str(i) + ".stl"
 
 
-# def select_file(init_dir=HOME_PATH, choose_file=True):
-#     Tk().withdraw()  # we don't want a full GUI, so keep the root window from appearing
-#     if choose_file:
-#         filename = askopenfilename(initialdir=init_dir,
-#                                    defaultextension="txt")  # show an "Open" dialog box and return the path to the selected file
-#         return filename
-#     else:
-#         foldername = tkinter.filedialog.askdirectory(initialdir=init_dir)
-#         return foldername
+def select_file(init_dir=MODELS_PATH,
+                choose_type="file" # file, folder
+                ):
+    # choose file vs folder
+    Tk().withdraw()  # we don't want a full GUI, so keep the root window from appearing
+    if choose_type == "file":
+        filename = askopenfilename(initialdir=init_dir,
+                                   defaultextension="txt")  # show an "Open" dialog box and return the path to the selected file
+        return filename
+    else:
+        foldername = tkinter.filedialog.askdirectory(initialdir=init_dir)
+        return foldername + "/"
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # print(device)

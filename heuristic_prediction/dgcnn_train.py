@@ -41,12 +41,12 @@ args = {
     "label_names": label_names,
 
     # Dataset Param
-    "data_fraction": 0.3,
+    "data_fraction": 1.0,
     "data_fraction_test": 0.1 / 4,
     "workers": 24,
     "grad_acc_steps": 4,
     "normalize_inputs": False,
-    "sampling_method": "mixed",
+    "sampling_method": "even",
     "imbalanced_weighting_bins": 1, #1 means no weighting
     "do_test": False,
     "normalize_outputs": False,
@@ -59,6 +59,7 @@ args = {
     "lr": 1e-2,
     "min_lr": 5e-4,
     "weight_decay": 1e-5,
+    "scheduler": "none",
     "seed": 1,
     "restarts": 3,
 }
@@ -68,7 +69,7 @@ args.update(model_args)
 if __name__ == "__main__":
     ### Data ###
     seed_all(args["seed"])
-    data_root_dir = paths.DATA_PATH + "data_th5k_norm/"
+    data_root_dir = paths.DATA_PATH + "data_primitives/"
     train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                 partition='train',
                                                 # filter_criteria=filter_criteria, use_augmentations=True,

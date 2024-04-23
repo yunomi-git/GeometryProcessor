@@ -47,15 +47,15 @@ class MeshDatasetFileManager:
         return data_files
 
     def get_mesh_files(self, absolute=True):
-        target_directory = self.get_mesh_path(absolute=True)
+        mesh_directory = self.get_mesh_path(absolute=True)
         if absolute:
-            data_files = [(target_directory + file)
-                          for file in os.listdir(target_directory)
-                          if os.path.isfile(os.path.join(target_directory, file))]
+            data_files = [(mesh_directory + file)
+                          for file in os.listdir(mesh_directory)
+                          if os.path.isfile(os.path.join(mesh_directory, file))]
         else:
             data_files = (file
-                          for file in os.listdir(target_directory)
-                          if os.path.isfile(os.path.join(target_directory, file)))
+                          for file in os.listdir(mesh_directory)
+                          if os.path.isfile(os.path.join(mesh_directory, file)))
         data_files.sort()
         return data_files
 
@@ -181,7 +181,7 @@ def calculate_instance_target(mesh: trimesh.Trimesh, augmentations: dict):
     instance_target.update(augmentations)
     return instance_target
 
-def save_base_mesh_and_target(mesh, mesh_file_manager: MeshDatasetFileManager, mesh_name):
+def save_base_mesh_and_target(mesh, mesh_file_manager: MeshDatasetFileManager, mesh_name, center=True, normalize_scale=True):
     # Only take the largest body in a mesh
     if mesh.body_count > 1:
         splits = list(mesh.split(only_watertight=False))
@@ -212,38 +212,54 @@ def save_base_mesh_and_target(mesh, mesh_file_manager: MeshDatasetFileManager, m
             "y": 0.0,
             "z": 0.0
         },
-        "scale": 1
+        "scale": 1.0
     }
-    calculate_and_append_augmentation(target=target,
-                                      mesh=mesh,
-                                      augmentations=augmentations)
+    mesh = get_augmented_mesh(mesh, augmentations)
+    mesh = normalize_mesh(mesh, center=center, normalize_scale=normalize_scale)
+    save_mesh_and_augmentation(target=target,
+                               mesh=mesh,
+                               augmentations=augmentations)
     with open(target_path_absolute, 'w') as f:
         json.dump(target, f)
     return target, mesh
 
 
-
-def calculate_and_append_augmentation(mesh: trimesh.Trimesh, target: dict, augmentations: dict):
-    mesh = get_augmented_mesh(mesh, augmentations)
-    # Normalize here if appropriate
+def normalize_mesh(mesh: trimesh.Trimesh, center, normalize_scale):
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+    normalization_scale = 1.0
+    normalization_translation = np.array([0, 0, 0])
+    if center:
+        centroid = np.mean(mesh_aux.vertices, axis=0)
+        min_bounds = mesh_aux.bound_lower
+        normalization_translation = -np.array([centroid[0], centroid[1], min_bounds[2]])
+    if normalize_scale:
+        scale = max(mesh_aux.bound_length)
+        normalization_scale = 1.0 / scale
+
+    mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
+    return mesh
+
+def save_mesh_and_augmentation(mesh: trimesh.Trimesh, target: dict, augmentations: dict):
+    # mesh = get_augmented_mesh(mesh, augmentations)
+    # Normalize here if appropriate
+    # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
     # Normalization Process
     # TODO make this an option
-    print("WARNING: Normalization is occurring after augmentation. calculate_and_append_augmentations()")
-    centroid = np.mean(mesh_aux.vertices, axis=0)
-    min_bounds = mesh_aux.bound_lower
-    normalization_translation = -np.array([centroid[0], centroid[1], min_bounds[2]])
-    scale = max(mesh_aux.bound_length)
-    normalization_scale = 1.0 / scale
-    mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
+    # print("WARNING: Normalization is occurring after augmentation. calculate_and_append_augmentations()")
+    # centroid = np.mean(mesh_aux.vertices, axis=0)
+    # min_bounds = mesh_aux.bound_lower
+    # normalization_translation = -np.array([centroid[0], centroid[1], min_bounds[2]])
+    # scale = max(mesh_aux.bound_length)
+    # normalization_scale = 1.0 / scale
+    # mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
 
     instance_target = calculate_instance_target(mesh, augmentations=augmentations)
     target["instances"].append(instance_target)
 
 
 def generate_base_dataset(data_root_dir, source_mesh_filenames, save_prefix, mesh_scale=1.0, center=True,
-                          normalize=True, starting_index=0):
+                          normalize_scale=True, starting_index=0):
     # Setup data path
     mesh_file_manager = MeshDatasetFileManager(root_dir=data_root_dir)
     Path(mesh_file_manager.get_mesh_path(absolute=True)).mkdir(parents=True, exist_ok=True)
@@ -263,29 +279,29 @@ def generate_base_dataset(data_root_dir, source_mesh_filenames, save_prefix, mes
             print("mesh not watertight. skipped:", i)
             continue
 
-        mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+        # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
-        normalization_scale = 1.0
-        normalization_translation = np.array([0, 0, 0])
-        if center:
-            centroid = np.mean(mesh_aux.vertices, axis=0)
-            min_bounds = mesh_aux.bound_lower
-            normalization_translation = -np.array([centroid[0], centroid[1], min_bounds[2]])
-        if normalize:
-            scale = max(mesh_aux.bound_length)
-            normalization_scale = 1.0 / scale
+        # normalization_scale = 1.0
+        # normalization_translation = np.array([0, 0, 0])
+        # if center:
+        #     centroid = np.mean(mesh_aux.vertices, axis=0)
+        #     min_bounds = mesh_aux.bound_lower
+        #     normalization_translation = -np.array([centroid[0], centroid[1], min_bounds[2]])
+        # if normalize_scale:
+        #     scale = max(mesh_aux.bound_length)
+        #     normalization_scale = 1.0 / scale
 
-        mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
+        # mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
 
         mesh.apply_scale(mesh_scale)
         try:
             # mesh_info, mesh_to_save = calculate_mesh_info(mesh, save_relative_path=save_mesh_relative_path, orig_mesh_path=mesh_path)
-            save_base_mesh_and_target(mesh, mesh_file_manager=mesh_file_manager, mesh_name=base_name)
+            save_base_mesh_and_target(mesh, mesh_file_manager=mesh_file_manager, mesh_name=base_name, center=center, normalize_scale=normalize_scale)
             i += 1
         except:
             continue
 
-def generate_augmentations_for_dataset(mesh_file_manager: MeshDatasetFileManager, augmentation_list):
+def generate_augmentations_for_dataset(mesh_file_manager: MeshDatasetFileManager, augmentation_list, center=True, normalize_scale=True):
     # Setup data path
     target_path_absolute_list = mesh_file_manager.get_target_files(absolute=True)
 
@@ -296,7 +312,9 @@ def generate_augmentations_for_dataset(mesh_file_manager: MeshDatasetFileManager
         mesh = mesh_file_manager.load_base_mesh_from_target(target_path_absolute=target_path)
 
         for augmentation in augmentation_list:
-            calculate_and_append_augmentation(mesh=mesh, target=target, augmentations=augmentation)
+            mesh = get_augmented_mesh(mesh, augmentation)
+            mesh = normalize_mesh(mesh, center=center, normalize_scale=normalize_scale)
+            save_mesh_and_augmentation(mesh=mesh, target=target, augmentations=augmentation)
 
         with open(target_path, 'w') as f:
             json.dump(target, f)
@@ -400,7 +418,7 @@ def save_generated_dataset_as_numpy(file_manager, max_mesh_per_file, num_points_
 
     # Save these
     save_path = file_manager.get_numpy_pointcloud_path(absolute=True, sampling_method=sampling_method)
-    num_files_to_split = int(len(all_point_clouds) / max_mesh_per_file) + 1
+    num_files_to_split = int(np.ceil(len(all_point_clouds) / max_mesh_per_file))
     pointcloud_file_names = []
     target_file_names = []
     per_point_file_names = []
@@ -448,35 +466,45 @@ if __name__ == "__main__":
     # quick_edit(paths.HOME_PATH + "data_augmentations/")
     # 1/0
     # Generation Parameters
-    outputs_save_path = paths.DATA_PATH + "data_mini/"
+    outputs_save_path = paths.DATA_PATH + "data_primitives/"
 
     mode = "convert_numpy" # generate_initial, add_augmentations, both, convert_numpy
+    normalize_center = True
+    normalize_scale = False
     if mode == "generate_initial" or mode == "both":
-        use_onshape = False
+        use_dataset = "custom" # onshape, thingiverse, custom
         source_mesh_filenames = []
-        normalize_center = True
-        normalize_scale = True
-        if use_onshape:
+        if use_dataset == "onshape":
             min_range = 0
             max_range = 290
             mesh_scale = 25.4
             prefix = "onshape"
             for i in range(min_range, max_range):
                 source_mesh_filenames.append(paths.get_onshape_stl_path(i, get_by_order=True))
-        else:
+        elif use_dataset == "thingiverse":
             min_range = 0
             max_range = 300
             mesh_scale = 1.0
             prefix = "thing"
             for i in range(min_range, max_range):
                 source_mesh_filenames.append(paths.get_thingiverse_stl_path(i, get_by_order=True))
+        else:
+            min_range = 0
+            max_range = 5000
+            mesh_scale = 1.0
+            prefix = "cone"
+            file_path = paths.HOME_PATH + "../Dataset_Primitives/"
+            contents = os.listdir(file_path)
+            contents.sort()
+            contents = contents[min_range:max_range]
+            source_mesh_filenames = [file_path + file_name for file_name in contents]
     if mode == "add_augmentations" or mode == "both":
         only_add_augmentations = False
         add_basic_augmentations = True
         num_extra_augmentations = 5
     if mode == "convert_numpy":
         num_points_to_sample = 1e4
-        max_mesh_per_file = 5e3
+        max_mesh_per_file = 2.5e3
         sampling_method="even"
     overwrite = False
 
@@ -491,7 +519,7 @@ if __name__ == "__main__":
                               source_mesh_filenames=source_mesh_filenames,
                               save_prefix=prefix,
                               mesh_scale=mesh_scale,
-                              normalize=normalize_scale,
+                              normalize_scale=normalize_scale,
                               center=normalize_center)
     if mode == "add_augmentations" or mode == "both":
         augmentation_list = []
@@ -537,7 +565,9 @@ if __name__ == "__main__":
         # })
 
         generate_augmentations_for_dataset(mesh_file_manager=mesh_file_manager,
-                                           augmentation_list=augmentation_list)
+                                           augmentation_list=augmentation_list,
+                                           center=normalize_center,
+                                           normalize_scale=normalize_scale)
 
     if mode == "convert_numpy":
         save_generated_dataset_as_numpy(mesh_file_manager, max_mesh_per_file, num_points_to_sample,

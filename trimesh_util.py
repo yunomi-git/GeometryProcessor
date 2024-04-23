@@ -311,7 +311,7 @@ def get_transformed_mesh_trs(mesh: trimesh.Trimesh, scale=np.array([1, 1, 1]), t
     # scale_matrix = np.diag([scale, scale, scale, 1.0])
     # trans_matrix = np.eye(4)
     # trans_matrix[:3, 3] = translation
-    if isinstance(scale, float):
+    if not isinstance(scale, np.ndarray):
         scale = np.array([scale, scale, scale])
 
     transform_matrix = create_transform_matrix(scale, translation, orientation)
@@ -348,7 +348,8 @@ def show_sampled_values(mesh, points, values, normalize=True, scale=None):
         point_cloud = trimesh.points.PointCloud(vertices=points,
                                                 colors=colors)
         s.add_geometry(point_cloud)
-    s.add_geometry(mesh)
+    if mesh is not None:
+        s.add_geometry(mesh)
     s.show()
 
 def show_mesh_with_normals(mesh, points, normals):
@@ -400,6 +401,7 @@ def show_mesh(mesh):
 
 def show_meshes(meshes):
     s = trimesh.Scene()
+    set_default_camera(s, meshes[0])
     for mesh in meshes:
         s.add_geometry(mesh)
     s.show()
