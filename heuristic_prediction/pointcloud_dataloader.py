@@ -2,6 +2,8 @@ import numpy as np
 import trimesh
 from torch.utils.data import Dataset
 from tqdm import tqdm
+
+import util
 from dataset.process_and_save import MeshDatasetFileManager, get_augmented_mesh
 from dataset.imbalanced_data import get_imbalanced_weight_nd, non_outlier_indices, non_outlier_indices_vertices_nclass
 
@@ -61,18 +63,18 @@ def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_crit
 
 class PointCloudDataset(Dataset):
     def __init__(self, data_root_dir, num_points, label_names, partition='train', filter_criteria=None, outputs_at="global",
-                 use_augmentations=True, data_fraction=1.0, use_numpy=True, normalize=False, sampling_method="mixed",
+                 use_augmentations=True, data_fraction=1.0, use_numpy=True, sampling_method="mixed",
                  imbalance_weight_num_bins=1, normalize_outputs=False, remove_outlier_ratio=0.05):
         # filter_criteria of the form filter_criteria(mesh, instance_data)->boolean
         self.outputs_at = outputs_at
+        timer = util.Stopwatch()
+        timer.start()
         if use_numpy:
             print("Loading data from numpy...")
             if use_augmentations:
                 print("Warning: augmentations are not being used")
             if filter_criteria is not None:
-                    print("Warning: filters are not being used")
-            if normalize:
-                print("Note: Data is being normalized")
+                print("Warning: filters are not being used")
             self.point_clouds, self.label = load_point_clouds_numpy(data_root_dir=data_root_dir,
                                                                     num_points=2 * num_points,
                                                                     label_names=label_names,
@@ -90,28 +92,28 @@ class PointCloudDataset(Dataset):
                                                                      use_augmentations=use_augmentations,
                                                                      sampling_method=sampling_method)
         # Normalize each target
-        if normalize:
-            print("Warning: should not set normalize flag of PointCloudDataset anymore")
-            # Normalize inputs
-            # First get bounding boxes
-            bound_max = np.max(self.point_clouds, axis=1)
-            bound_min = np.min(self.point_clouds, axis=1)
-            centroid = np.mean(self.point_clouds, axis=1)
-            bound_length = np.max(bound_max - bound_min, axis=1) # maximum length
-            # scale to box of 0, 1
-            self.normalization_scale = 1.0/bound_length
-            normalization_scale_multiplier = np.repeat(self.normalization_scale[:, np.newaxis], len(self.point_clouds[0]), axis=1)
-            normalization_scale_multiplier = np.repeat(normalization_scale_multiplier[:, :, np.newaxis], 3, axis=2)
-
-            centering = np.repeat(centroid[:, np.newaxis, :], num_points*2, axis=1)
-            self.point_clouds -= centering
-            self.point_clouds = normalization_scale_multiplier * self.point_clouds
-
-            self.normalization_order = 3
-            self.label = self.label * np.repeat(np.power(self.normalization_scale, self.normalization_order)[:, np.newaxis], len(self.label[0]), axis=1)
+        # if normalize:
+        #     print("Warning: should not set normalize flag of PointCloudDataset anymore")
+            # # Normalize inputs
+            # # First get bounding boxes
+            # bound_max = np.max(self.point_clouds, axis=1)
+            # bound_min = np.min(self.point_clouds, axis=1)
+            # centroid = np.mean(self.point_clouds, axis=1)
+            # bound_length = np.max(bound_max - bound_min, axis=1) # maximum length
+            # # scale to box of 0, 1
+            # self.normalization_scale = 1.0/bound_length
+            # normalization_scale_multiplier = np.repeat(self.normalization_scale[:, np.newaxis], len(self.point_clouds[0]), axis=1)
+            # normalization_scale_multiplier = np.repeat(normalization_scale_multiplier[:, :, np.newaxis], 3, axis=2)
+            #
+            # centering = np.repeat(centroid[:, np.newaxis, :], num_points*2, axis=1)
+            # self.point_clouds -= centering
+            # self.point_clouds = normalization_scale_multiplier * self.point_clouds
+            #
+            # self.normalization_order = 3
+            # self.label = self.label * np.repeat(np.power(self.normalization_scale, self.normalization_order)[:, np.newaxis], len(self.label[0]), axis=1)
 
         if normalize_outputs:
-            print("Warning: should not set normalize_outputs flag of PointCloudDataset anymore")
+            print("Normalizing Outputs")
             length = np.max(self.label, axis=0) - np.min(self.label, axis=0)
             center = np.mean(self.label, axis=0)
             self.label = (self.label - center) / length
@@ -134,6 +136,7 @@ class PointCloudDataset(Dataset):
             self.weights = get_imbalanced_weight_nd(self.label, num_bins=imbalance_weight_num_bins, modifier=None)
             # self.weights = np.sqrt(self.weights)
 
+        print("Time to load data: ", timer.get_time())
         self.num_points = num_points
         self.partition = partition
 

@@ -1,7 +1,7 @@
 from __future__ import print_function
 import torch
 import torch.optim as optim
-from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
+from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts, ReduceLROnPlateau
 from heuristic_prediction.regression_tools import RegressionTools, succinct_label_save_name, seed_all
 import paths
 from heuristic_prediction.dgcnn_model import DGCNN_param, DGCNN_segment
@@ -29,9 +29,10 @@ model_args = {
 experiment_name = succinct_label_save_name(label_names)
 
 args = {
-    "dataset_name": "prim_cone_hole",
+    "dataset_name": "mcb_scale_a",
     "exp_name": experiment_name,
     "label_names": label_names,
+    "seed": 1,
 
     # Dataset Param
     "data_fraction": 1.0,
@@ -39,10 +40,8 @@ args = {
     "do_test": True,
     "workers": 24,
 
-    "normalize_inputs": False,
     "sampling_method": "even",
     "imbalanced_weighting_bins": 1, #1 means no weighting
-
     "normalize_outputs": False,
     "remove_outlier_ratio": 0.1, # 0 means remove no outliers
 
@@ -50,13 +49,15 @@ args = {
     "batch_size": 16,
     "test_batch_size": 32,
     "grad_acc_steps": 2,
-    "epochs": 50,
-    "lr": 1e-2,
-    "min_lr": 5e-4,
+    "epochs": 100,
+    "lr": 1e-3,
     "weight_decay": 1e-5,
-    "scheduler": "none",
-    "seed": 1,
-    "restarts": 3,
+
+    "scheduler": "plateau",
+    # "restarts": 3,
+    # "min_lr": 5e-4,
+    "patience": 5,
+    "factor": 0.1
 }
 
 args.update(model_args)
@@ -69,7 +70,7 @@ if __name__ == "__main__":
                                                 partition='train',
                                                 # filter_criteria=filter_criteria, use_augmentations=True,
                                                 data_fraction=args["data_fraction"], use_numpy=True,
-                                                normalize=args["normalize_inputs"],
+                                                # normalize=args["normalize_inputs"],
                                                 normalize_outputs=args["normalize_outputs"],
                                                 sampling_method=args["sampling_method"],
                                                 outputs_at=args["outputs_at"],
@@ -81,7 +82,7 @@ if __name__ == "__main__":
                                                partition='test',
                                                # filter_criteria=filter_criteria, use_augmentations=False,
                                                data_fraction=args["data_fraction_test"], use_numpy=True,
-                                               normalize=args["normalize_inputs"],
+                                               # normalize=args["normalize_inputs"],
                                                normalize_outputs=False,
                                                sampling_method=args["sampling_method"],
                                                outputs_at=args["outputs_at"],
@@ -103,8 +104,8 @@ if __name__ == "__main__":
             scheduler = CosineAnnealingLR(opt, args["epochs"], eta_min=args["min_lr"])
         else:
             scheduler = CosineAnnealingWarmRestarts(opt, args["epochs"], T_mult=args["restarts"], eta_min=args["min_lr"])
-
-
+    if args["scheduler"] == "plateau":
+            scheduler = ReduceLROnPlateau(opt, patience=args["patience"], factor=args["factor"])
 
 
     regression_manager = RegressionTools(

@@ -304,13 +304,6 @@ def get_transformed_mesh_trs(mesh: trimesh.Trimesh, scale=np.array([1, 1, 1]), t
                              orientation=np.array([0, 0, 0])):
     # Order applied: translate, rotate, scale
     # orientation as [x, y, z]
-    # r = R.from_euler('zyx', [orientation[2], orientation[1], orientation[0]]).as_matrix()
-    # rot_matrix = np.zeros((4, 4))
-    # rot_matrix[:3, :3] = r
-    # rot_matrix[3, 3] = 1.0
-    # scale_matrix = np.diag([scale, scale, scale, 1.0])
-    # trans_matrix = np.eye(4)
-    # trans_matrix[:3, 3] = translation
     if not isinstance(scale, np.ndarray):
         scale = np.array([scale, scale, scale])
 

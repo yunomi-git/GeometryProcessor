@@ -109,7 +109,7 @@ def display_meshes(model, path):
         comparison(model, mesh, args['num_points'])
 
 if __name__=="__main__":
-    path = paths.DATA_PATH + "data_th5k_norm/"
+    path = paths.DATA_PATH + "mcb_scale/"
 
     save_path = paths.select_file(choose_type="folder")
     arg_path = save_path + "args.json"

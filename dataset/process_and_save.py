@@ -119,14 +119,6 @@ class MeshDatasetFileManager:
         else:
             targets = targets[:, :, label_indices]
 
-        # # Convert targets to dictionary
-        # targets_dict = {}
-        # for i in range(len(label_names)):
-        #     key = label_names[i]
-        #     if key not in targets_dict:
-        #         targets_dict[key] = []
-        #     targets_dict[key] = targets[:, i]
-
         return clouds, targets
 
 # def test_load_numpy_pointclouds():
@@ -150,8 +142,13 @@ def get_augmented_mesh(mesh: trimesh.Trimesh, augmentations):
     # "scale":
     ###
     orientation = augmentations["orientation"]
-    eulers = [orientation["x"], orientation["y"], orientation["z"]]
-    scale = augmentations["scale"]
+    eulers = [orientation["x"],
+              orientation["y"],
+              orientation["z"]]
+
+    scale = np.array([augmentations["scale"]["x"],
+                      augmentations["scale"]["y"],
+                      augmentations["scale"]["z"]])
 
     transformed_mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=scale, orientation=eulers)
 
@@ -194,6 +191,8 @@ def save_base_mesh_and_target(mesh, mesh_file_manager: MeshDatasetFileManager, m
                 largest_submesh = submesh
         mesh = largest_submesh
 
+    mesh = normalize_mesh(mesh, center=center, normalize_scale=normalize_scale)
+
     target = {
         "base_name": mesh_name,
         "mesh_relative_path": mesh_file_manager.get_mesh_path(absolute=False) + mesh_name + ".stl",
@@ -207,18 +206,14 @@ def save_base_mesh_and_target(mesh, mesh_file_manager: MeshDatasetFileManager, m
         
     # Add the first instance
     augmentations = {
-        "orientation": {
-            "x": 0.0,
-            "y": 0.0,
-            "z": 0.0
-        },
-        "scale": 1.0
+        "orientation": {"x": 0.0, "y": 0.0, "z": 0.0},
+        "scale": {"x": 1.0, "y": 1.0, "z": 1.0}
     }
     mesh = get_augmented_mesh(mesh, augmentations)
     mesh = normalize_mesh(mesh, center=center, normalize_scale=normalize_scale)
-    save_mesh_and_augmentation(target=target,
-                               mesh=mesh,
-                               augmentations=augmentations)
+    save_labels_for_mesh(target=target,
+                         mesh=mesh,
+                         augmentations=augmentations)
     with open(target_path_absolute, 'w') as f:
         json.dump(target, f)
     return target, mesh
@@ -239,7 +234,7 @@ def normalize_mesh(mesh: trimesh.Trimesh, center, normalize_scale):
     mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
     return mesh
 
-def save_mesh_and_augmentation(mesh: trimesh.Trimesh, target: dict, augmentations: dict):
+def save_labels_for_mesh(mesh: trimesh.Trimesh, target: dict, augmentations: dict):
     instance_target = calculate_instance_target(mesh, augmentations=augmentations)
     target["instances"].append(instance_target)
 
@@ -261,11 +256,11 @@ def generate_base_dataset(data_root_dir, source_mesh_filenames, save_prefix, mes
             print("mesh skipped:", mesh_path)
             continue
 
-        # if not mesh.is_watertight:
-        #     mesh.fill_holes()
-        #     if not mesh.is_watertight:
-        #         print("mesh not watertight. skipped:", mesh_path)
-        #         continue
+        if not mesh.is_watertight:
+            mesh.fill_holes()
+            if not mesh.is_watertight:
+                print("mesh not watertight. skipped:", mesh_path)
+                continue
 
         # mesh.apply_scale(mesh_scale)
         try:
@@ -288,7 +283,7 @@ def generate_augmentations_for_dataset(mesh_file_manager: MeshDatasetFileManager
         for augmentation in augmentation_list:
             mesh = get_augmented_mesh(mesh, augmentation)
             mesh = normalize_mesh(mesh, center=center, normalize_scale=normalize_scale)
-            save_mesh_and_augmentation(mesh=mesh, target=target, augmentations=augmentation)
+            save_labels_for_mesh(mesh=mesh, target=target, augmentations=augmentation)
 
         with open(target_path, 'w') as f:
             json.dump(target, f)
@@ -305,7 +300,12 @@ def quick_edit(data_root_directory):
         with open(file, 'w') as f:
             json.dump(target, f)
 
-def save_generated_dataset_as_numpy(file_manager, max_mesh_per_file, num_points_to_sample: int, sampling_method="mixed"):
+def save_generated_dataset_as_numpy(file_manager,
+                                    max_mesh_per_file,
+                                    num_points_to_sample: int,
+                                    sampling_method="mixed",
+                                    normalize_scale=True,
+                                    center=True):
     num_points_to_sample = int(num_points_to_sample)
     max_mesh_per_file = int(max_mesh_per_file)
     Path(mesh_file_manager.get_numpy_pointcloud_path(absolute=True, sampling_method=sampling_method)).mkdir(parents=True, exist_ok=True)
@@ -328,14 +328,14 @@ def save_generated_dataset_as_numpy(file_manager, max_mesh_per_file, num_points_
     ]
 
     extra_label_names = [
-        "surface_area",
+        # "surface_area",
     ]
 
     per_point_label_names = [
         "nx",
         "ny",
         "nz",
-        "curvature",
+        # "curvature",
         "thickness"
     ]
 
@@ -346,19 +346,19 @@ def save_generated_dataset_as_numpy(file_manager, max_mesh_per_file, num_points_
 
         for instance_data in instances:
             mesh = get_augmented_mesh(mesh, instance_data)
+            mesh = normalize_mesh(mesh, normalize_scale=normalize_scale, center=center)
 
             try:
                 mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
                 vertices, normals, face_ids = mesh_aux.sample_and_get_normals(count=int(num_points_to_sample * 1.2), # Scaling is for thickness calculation failures
                                                                           use_weight=sampling_method, return_face_ids=True)
                 _, thicknesses, num_hits = mesh_aux.calculate_thickness_at_points(points=vertices, normals=normals)
-                _, curvature = mesh_aux.calculate_curvature_at_points(origins=vertices, face_ids=face_ids,
-                                                                      curvature_method="defect")
+                # _, curvature = mesh_aux.calculate_curvature_at_points(origins=vertices, face_ids=face_ids,
+                #                                                       curvature_method="defect")
 
             except:
                 print("sampling error")
                 continue
-            # np.random.shuffle(vertices)
 
             ## Per point labels
             # calculate thicknesses / point
@@ -369,19 +369,23 @@ def save_generated_dataset_as_numpy(file_manager, max_mesh_per_file, num_points_
             vertices = vertices[:num_points_to_sample]
             normals = normals[:num_points_to_sample]
             thicknesses = thicknesses[:num_points_to_sample]
-            curvature = curvature[:num_points_to_sample]
+            # curvature = curvature[:num_points_to_sample]
 
-            per_point_label = np.concatenate((normals, curvature[:, np.newaxis], thicknesses[:, np.newaxis]), axis=1)
+            per_point_label = np.concatenate((normals,
+                                              # curvature[:, np.newaxis],
+                                              thicknesses[:, np.newaxis]),
+                                             axis=1)
             # per_point_label = normals
+            # per_point_label = thicknesses[:, np.newaxis]
 
             assert(len(vertices) == num_points_to_sample)
 
             ## Global label
             label = np.array([instance_data[label_name] for label_name in label_names])
             # Append SA
-            label = np.concatenate((label, np.array([mesh_aux.surface_area])))
+            # label = np.concatenate((label, np.array([mesh_aux.surface_area])))
             # Append Centroid
-            label = np.concatenate((label, np.mean(vertices, axis=0)))
+            # label = np.concatenate((label, np.mean(vertices, axis=0)))
 
             ## Save
             all_point_clouds.append(vertices)
@@ -440,13 +444,13 @@ if __name__ == "__main__":
     # quick_edit(paths.HOME_PATH + "data_augmentations/")
     # 1/0
     # Generation Parameters
-    outputs_save_path = paths.DATA_PATH + "modelnet_tables/"
+    outputs_save_path = paths.DATA_PATH + "mcb_scale_a/"
 
     mode = "convert_numpy" # generate_initial, add_augmentations, both, convert_numpy
     normalize_center = True
-    normalize_scale = False
+    normalize_scale = True
     if mode == "generate_initial" or mode == "both":
-        use_dataset = "modelnet_tables" # onshape, thingiverse, custom
+        use_dataset = "custom" # onshape, thingiverse, custom
         source_mesh_filenames = []
         if use_dataset == "onshape":
             min_range = 0
@@ -478,19 +482,43 @@ if __name__ == "__main__":
             min_range = 0
             max_range = 5000
             mesh_scale = 1.0
-            prefix = "modelnet"
+            prefix = "mcb"
 
-            file_path = paths.HOME_PATH + "../Datasets/ModelNet40/"
-            # folders = os.listdir(file_path)
-            folders = ["chair", "bench", "table", "sofa", "stool"]
+            file_path = paths.HOME_PATH + "../Datasets/MCB_A/train/"
+            folders = os.listdir(file_path)
+            # folders = ["chair", "bench", "table", "sofa", "stool"]
             num_folders = len(folders)
-            contents = paths.get_files_in_folders(base_folder=file_path, files_per_folder=max_range // num_folders, folders=folders, per_folder_subfolder="train")
+            contents = paths.get_files_in_folders(base_folder=file_path, files_per_folder=max_range // num_folders, folders=folders, per_folder_subfolder="")
             contents = contents[min_range:max_range]
             source_mesh_filenames = [file_path + file_name for file_name in contents]
     if mode == "add_augmentations" or mode == "both":
-        only_add_augmentations = False
-        add_basic_augmentations = True
-        num_extra_augmentations = 5
+        augmentation_list = []
+        # ========= Orientations ===========
+        augmentation_list.append({
+            "orientation": {"x": np.pi, "y": 0.0, "z": 0.0},
+            "scale": {"x": 1.0, "y": 1.0, "z": 1.0}
+        })
+        augmentation_list.append({
+            "orientation": {"x": np.pi / 2, "y": 0.0, "z": 0.0},
+            "scale": {"x": 1.0, "y": 1.0, "z": 1.0}
+        })
+        augmentation_list.append({
+            "orientation": {"x": -np.pi / 2, "y": 0.0, "z": 0.0},
+            "scale": {"x": 1.0, "y": 1.0, "z": 1.0}
+        })
+        # ========= Scalings ============
+        augmentation_list.append({
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "scale": {"x": 2.0, "y": 1.0, "z": 1.0},
+        })
+        augmentation_list.append({
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "scale": {"x": 1.0, "y": 2.0, "z": 1.0},
+        })
+        augmentation_list.append({
+            "orientation": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "scale": {"x": 1.0, "y": 1.0, "z": 2.0},
+        })
     if mode == "convert_numpy":
         num_points_to_sample = 1e4
         max_mesh_per_file = 2.5e3
@@ -511,35 +539,7 @@ if __name__ == "__main__":
                               normalize_scale=normalize_scale,
                               center=normalize_center)
     if mode == "add_augmentations" or mode == "both":
-        augmentation_list = []
-        augmentation_list.append({
-            "orientation": {"x": np.pi, "y": 0.0, "z": 0.0},
-            "scale": 1
-        })
-        augmentation_list.append({
-            "orientation": {"x": np.pi/2, "y": 0.0, "z": 0.0},
-            "scale": 1
-        })
-        augmentation_list.append({
-            "orientation": {"x": -np.pi/2, "y": 0.0, "z": 0.0},
-            "scale": 1
-        })
-        # augmentation_list.append({
-        #     "orientation": {
-        #         "x": 0.0,
-        #         "y": 0.0,
-        #         "z": 0.0
-        #     },
-        #     "scale": 0.9
-        # })
-        # augmentation_list.append({
-        #     "orientation": {
-        #         "x": 0.0,
-        #         "y": 0.0,
-        #         "z": 0.0
-        #     },
-        #     "scale": 0.8
-        # })
+
 
         generate_augmentations_for_dataset(mesh_file_manager=mesh_file_manager,
                                            augmentation_list=augmentation_list,
@@ -548,7 +548,9 @@ if __name__ == "__main__":
 
     if mode == "convert_numpy":
         save_generated_dataset_as_numpy(mesh_file_manager, max_mesh_per_file, num_points_to_sample,
-                                        sampling_method=sampling_method)
+                                        sampling_method=sampling_method,
+                                        normalize_scale=normalize_scale,
+                                        center=normalize_center)
 
 
 

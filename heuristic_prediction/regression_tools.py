@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import json
 import util
-from util import IOStream
+from util import IOStream, Stopwatch
 import matplotlib.pyplot as plt
 from datetime import datetime
 
@@ -43,6 +43,7 @@ class RegressionTools:
         print("Saving checkpoints to: ", self.checkpoint_path)
         self.io = self.create_checkpoints(args)
         self.gradient_accumulation_steps = args["grad_acc_steps"]
+        # self.io.cprint("Total training data: " + str(self.train_loader.))
 
 
     def create_checkpoints(self, args):
@@ -96,7 +97,10 @@ class RegressionTools:
                     train_pred.append(preds.detach().cpu().numpy())
 
             if self.scheduler is not None:
-                self.scheduler.step()
+                if self.args["scheduler"] == "plateau":
+                    self.scheduler.step(loss)
+                else:
+                    self.scheduler.step()
 
             train_true = np.concatenate(train_true)
             train_pred = np.concatenate(train_pred)
@@ -118,7 +122,11 @@ class RegressionTools:
                       '\n\tr2: %s '
                       '\n\tlr: %s '
                       '\n\tacc: %s' %
-                      (epoch, train_loss * 1.0 / count, str(res), self.opt.param_groups[0]['lr'], str(acc)))
+                      (epoch,
+                       train_loss * 1.0 / count,
+                       str(res),
+                       self.opt.param_groups[0]['lr'],
+                       str(acc)))
             self.io.cprint(outstr)
 
             loss_history.append(train_loss * 1.0 / count)
@@ -126,6 +134,8 @@ class RegressionTools:
 
             # Loss
             if plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0:
+                timer = Stopwatch()
+                timer.start()
                 plt.figure(0)
                 plt.clf()
                 for i in range(len(res)):
@@ -155,6 +165,7 @@ class RegressionTools:
                 plt.ylabel("Loss")
                 plt.xlabel("Epoch")
                 plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
+                print("Time to save figures: ", timer.get_time())
 
 
 
