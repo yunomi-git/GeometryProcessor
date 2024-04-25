@@ -10,12 +10,14 @@ import json
 import util
 from util import IOStream
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 class RegressionTools:
     def __init__(self, args, label_names, train_loader, test_loader, model, opt, scheduler=None, clip_parameters=False):
         self.device = torch.device("cuda")
         # self.seed_all(args["seed"])
 
+        self.dataset_name = args["dataset_name"]
         self.model_name = type(model).__name__
         self.model = nn.DataParallel(model.to(self.device))
         self.label_names = label_names
@@ -35,7 +37,7 @@ class RegressionTools:
         self.scheduler = scheduler
 
         self.args = args
-        self.checkpoint_path = ("checkpoints/" + self.model_name + "/" +
+        self.checkpoint_path = ("checkpoints/" + self.dataset_name + "/" + self.model_name + "/" +
                                 util.get_date_name() + "_" + args['exp_name'] + "/")
 
         print("Saving checkpoints to: ", self.checkpoint_path)
@@ -61,6 +63,7 @@ class RegressionTools:
         res_train_history = []
         labels = args["label_names"]
         for epoch in range(args['epochs']):
+            print(datetime.now())
             ####################
             # Train
             ####################

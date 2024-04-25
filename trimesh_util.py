@@ -47,7 +47,7 @@ class MeshAuxilliaryInfo:
         self.vertices = mesh.vertices
         self.num_vertices = len(self.vertices)
 
-    def sample_and_get_normals(self, count=50000, use_weight="even", return_face_ids=False):
+    def sample_and_get_normals(self, count=5000, use_weight="even", return_face_ids=False):
         ## even, curvature, face_area
 
         if use_weight == "even":

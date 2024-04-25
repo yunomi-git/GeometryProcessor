@@ -11,16 +11,8 @@ from heuristic_prediction.pointcloud_dataloader import PointCloudDataset
 torch.cuda.empty_cache()
 
 label_names = [
-    # "overhang_violation",
-    # "stairstep_violation",
-    # "thickness_violation",
-    # "gap_violation",
-    # "volume",
     # "surface_area"
     "thickness",
-    # "nx",
-    # "ny",
-    # "nz"
 ]
 
 model_args = {
@@ -37,24 +29,27 @@ model_args = {
 experiment_name = succinct_label_save_name(label_names)
 
 args = {
+    "dataset_name": "prim_cone_hole",
     "exp_name": experiment_name,
     "label_names": label_names,
 
     # Dataset Param
     "data_fraction": 1.0,
-    "data_fraction_test": 0.1 / 4,
+    "data_fraction_test": 1.0 / 4,
+    "do_test": True,
     "workers": 24,
-    "grad_acc_steps": 4,
+
     "normalize_inputs": False,
     "sampling_method": "even",
     "imbalanced_weighting_bins": 1, #1 means no weighting
-    "do_test": False,
+
     "normalize_outputs": False,
     "remove_outlier_ratio": 0.1, # 0 means remove no outliers
 
     # Opt Param
-    "batch_size": 8,
-    "test_batch_size": 8,
+    "batch_size": 16,
+    "test_batch_size": 32,
+    "grad_acc_steps": 2,
     "epochs": 50,
     "lr": 1e-2,
     "min_lr": 5e-4,
@@ -69,7 +64,7 @@ args.update(model_args)
 if __name__ == "__main__":
     ### Data ###
     seed_all(args["seed"])
-    data_root_dir = paths.DATA_PATH + "data_primitives/"
+    data_root_dir = paths.DATA_PATH + args["dataset_name"] + "/"
     train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                 partition='train',
                                                 # filter_criteria=filter_criteria, use_augmentations=True,
@@ -102,10 +97,12 @@ if __name__ == "__main__":
         model = DGCNN_segment(args)
     # opt = torch.optim.SGD(model.parameters(), lr=args["lr"], momentum=0.9, weight_decay=args["weight_decay"])
     opt = optim.Adam(model.parameters(), lr=args['lr'], weight_decay=args["weight_decay"])
-    if args["restarts"] == 0:
-        scheduler = CosineAnnealingLR(opt, args["epochs"], eta_min=args["min_lr"])
-    else:
-        scheduler = CosineAnnealingWarmRestarts(opt, args["epochs"], T_mult=args["restarts"], eta_min=args["min_lr"])
+    scheduler = None
+    if args["scheduler"] == "cosine_annealing":
+        if args["restarts"] == 0:
+            scheduler = CosineAnnealingLR(opt, args["epochs"], eta_min=args["min_lr"])
+        else:
+            scheduler = CosineAnnealingWarmRestarts(opt, args["epochs"], T_mult=args["restarts"], eta_min=args["min_lr"])
 
 
 

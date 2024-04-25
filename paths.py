@@ -6,11 +6,39 @@ from tkinter.filedialog import askopenfilename
 
 HOME_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
 MODELS_PATH = HOME_PATH + "heuristic_prediction/checkpoints/"
-ONSHAPE_STL_PATH = HOME_PATH + "../Onshape_STL_Dataset/"
+ONSHAPE_STL_PATH = HOME_PATH + "../Datasets/Onshape_STL_Dataset/"
 # THINGIVERSE_STL_PATH = HOME_PATH + "../Thingiverse_STL_Dataset/"
-THINGIVERSE_STL_PATH = HOME_PATH + "../Dataset_Thingiverse_10k/"
+THINGIVERSE_STL_PATH = HOME_PATH + "../Datasets/Dataset_Thingiverse_10k/"
 
 DATA_PATH = HOME_PATH + "data/"
+
+def get_files_multifolder(base_folder, files_per_folder):
+    files = []
+    folders = os.listdir(base_folder)
+    for folder in folders:
+        contents = os.listdir(base_folder + "/" + folder)
+        contents.sort()
+        contents = [folder + "/" + file for file in contents]
+        max_files = files_per_folder
+        if max_files > len(contents):
+            max_files = len(contents)
+        files.extend(contents[:max_files])
+    return files
+
+def get_files_in_folders(base_folder, folders=None, files_per_folder=10000, per_folder_subfolder=""):
+    files = []
+    if folders is None:
+        folders = os.listdir(base_folder)
+    for folder in folders:
+        contents = os.listdir(base_folder + "/" + folder + "/" + per_folder_subfolder)
+        contents.sort()
+        contents = [folder + "/" + per_folder_subfolder + "/" + file for file in contents]
+        max_files = files_per_folder
+        if max_files > len(contents):
+            max_files = len(contents)
+        files.extend(contents[:max_files])
+    return files
+
 
 # Note: these are in inch and must be scaled!
 def get_onshape_stl_path(i, get_by_order=False):

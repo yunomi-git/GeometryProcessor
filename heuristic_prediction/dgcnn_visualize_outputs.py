@@ -8,6 +8,7 @@ from dgcnn_model import DGCNN_segment
 import torch
 import torch.nn as nn
 import trimesh
+import pyvista as pv
 
 args = {
     # Dataset Param
@@ -24,6 +25,43 @@ label_names = ["thickness"]
 device = "cuda"
 
 
+def comparison(model, mesh, count):
+    mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+    cloud, actual = mesh_aux.calculate_thicknesses_samples(count=count)
+    # cloud, normals = mesh_aux.sample_and_get_normals(count=count, use_weight="even", return_face_ids=False)
+    cloud_tens = torch.from_numpy(cloud).float()
+    cloud_tens = cloud_tens.to(device)
+    preds = model(cloud_tens[None, :, :])
+    preds = preds.detach().cpu().numpy()
+    preds = preds[:, :, 0].flatten()
+
+    pl = pv.Plotter(shape=(1, 2))
+    pl.subplot(0, 0)
+    actor = pl.add_points(
+        cloud,
+        scalars=actual,
+        render_points_as_spheres=True,
+        point_size=10,
+        show_scalar_bar=True,
+        # text="Curvature"
+    )
+    pl.add_text('Actual', color='black')
+    actor.mapper.lookup_table.cmap = 'jet'
+
+    pl.subplot(0, 1)
+    actor = pl.add_points(
+        cloud,
+        scalars=preds,
+        render_points_as_spheres=True,
+        point_size=10,
+        show_scalar_bar=True,
+    )
+    pl.add_text('Pred', color='black')
+    actor.mapper.lookup_table.cmap = 'jet'
+
+    pl.link_views()
+    pl.show()
+
 def show_inference_pointcloud(model, cloud):
     cloud_tens = torch.from_numpy(cloud)
     cloud_tens = cloud_tens.to(device)
@@ -35,13 +73,19 @@ def show_inference_pointcloud(model, cloud):
 
 def show_inference_mesh(model, mesh, count):
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-    cloud, _ = mesh_aux.sample_and_get_normals(count=count, use_weight="even", return_face_ids=False)
+    cloud, actual = mesh_aux.calculate_thicknesses_samples(count=count)
+    # cloud, normals = mesh_aux.sample_and_get_normals(count=count, use_weight="even", return_face_ids=False)
     cloud_tens = torch.from_numpy(cloud).float()
     cloud_tens = cloud_tens.to(device)
     preds = model(cloud_tens[None, :, :])
     preds = preds.detach().cpu().numpy()
     preds = preds[:, :, 0].flatten()
-    trimesh_util.show_sampled_values(mesh=mesh, points=cloud, values=preds, normalize=True)
+
+    # hit_origins, wall_thicknesses = mesh_aux.calculate_thickness_at_points(cloud, normals)
+    error = actual
+    trimesh_util.show_sampled_values(mesh=mesh, points=cloud, values=error, scale=[0, 1])
+
+    # trimesh_util.show_sampled_values(mesh=mesh, points=cloud, values=preds, normalize=True)
 
 def display_clouds(model, path):
     dataset = PointCloudDataset(path, args['num_points'], label_names=label_names,
@@ -61,10 +105,11 @@ def display_meshes(model, path):
     mesh_files = file_manager.get_mesh_files(absolute=True)
     for file in mesh_files:
         mesh = trimesh.load(file)
-        show_inference_mesh(model, mesh, args['num_points'])
+        # show_inference_mesh(model, mesh, args['num_points'])
+        comparison(model, mesh, args['num_points'])
 
 if __name__=="__main__":
-    path = paths.DATA_PATH + "data_primitives/"
+    path = paths.DATA_PATH + "data_th5k_norm/"
 
     save_path = paths.select_file(choose_type="folder")
     arg_path = save_path + "args.json"

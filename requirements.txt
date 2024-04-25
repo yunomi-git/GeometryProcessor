@@ -1,9 +1,17 @@
 numpy==1.24 # for pymesh testing. but can also just remove the testing line int __init__
 matplotlib
 scipy #
+fast_histogram
+
+pyvista
 
 trimesh[all] # Nice plotter and manipulator. replaces numpy-stl and vtk
-#torch_geometry
+pymeshlab
+polyscope
+bpy
+lightning
+
+# pymesh
 seaborn==0.11.0 # from numpy requirements from pymesh
 
 # for diffusion_net
@@ -11,15 +19,12 @@ potpourri3d
 scikit-learn
 robust-laplacian
 
-zenodo_get
-bpy
-lightning
-
 #dgcnn
 h5py
 
-pymeshlab
-polyscope
+# dataset download
+huggingface_hub
+zenodo_get
 
 #
 # ln -s diffusion-net/src/diffusion_net diffusion_net

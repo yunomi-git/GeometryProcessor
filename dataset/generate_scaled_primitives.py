@@ -4,9 +4,9 @@ import paths
 import numpy as np
 from pathlib import Path
 if __name__=="__main__":
-    save_path = paths.HOME_PATH + "../dataset_primitives/"
+    save_path = paths.HOME_PATH + "../dataset_prim_cone_hole/"
     Path(save_path).mkdir(exist_ok=True)
-    primitive_name = "Cone"
+    primitive_name = "ConeWithHole"
     primitive_path = paths.HOME_PATH + "stls/" + primitive_name + ".stl"
     mesh = trimesh.load(primitive_path)
     min_scale = 1

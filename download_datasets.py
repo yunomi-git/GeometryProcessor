@@ -4,6 +4,8 @@ import requests
 from zipfile import ZipFile
 import zenodo_get
 from tqdm import tqdm
+from huggingface_hub import hf_hub_download
+import pandas as pd
 
 def download_from_harvard_dataverse(zip_path, API_KEY, DOI):
     SERVER_URL = "https://dataverse.harvard.edu"
@@ -50,6 +52,14 @@ def download_with_progress_bar(output_filename, url, header=None):
 
     if total_size != 0 and progress_bar.n != total_size:
         raise RuntimeError("Could not download file")
+
+def download_shapenet():
+    REPO_ID = "YOUR_REPO_ID"
+    FILENAME = "data.csv"
+
+    dataset = pd.read_csv(
+        hf_hub_download(repo_id=REPO_ID, filename=FILENAME, repo_type="dataset")
+    )
 
 if __name__=="__main__":
     # download_from_zenodo(zip_path=paths.HOME_PATH + "../Thingiverse_STL_Dataset.zip", doi=1098527, file="all-stl.zip")

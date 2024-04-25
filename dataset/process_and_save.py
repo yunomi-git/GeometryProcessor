@@ -162,8 +162,8 @@ def calculate_instance_target(mesh: trimesh.Trimesh, augmentations: dict):
     # Augmentations are just saved to the target. Not used for calculations
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
-    thickness_printability = printability_metrics.get_thickness_printability(mesh_aux)
-    gap_printability = printability_metrics.get_gap_printability(mesh_aux)
+    # thickness_printability = printability_metrics.get_thickness_printability(mesh_aux)
+    # gap_printability = printability_metrics.get_gap_printability(mesh_aux)
     instance_target = {
         "vertices": mesh_aux.num_vertices,
         "edges": mesh_aux.num_edges,
@@ -171,12 +171,12 @@ def calculate_instance_target(mesh: trimesh.Trimesh, augmentations: dict):
         "bound_length": np.max(mesh_aux.bound_length),
         "is_manifold": mesh.is_watertight,
         "volume": mesh.volume,
-        "overhang_violation": printability_metrics.get_overhang_printability(mesh_aux)[2],
-        "stairstep_violation": printability_metrics.get_stairstep_printability(mesh_aux)[2],
-        "thickness_violation": thickness_printability[2],
-        "min_thickness": thickness_printability[3],
-        "gap_violation": gap_printability[2],
-        "min_gap": gap_printability[3],
+        # "overhang_violation": printability_metrics.get_overhang_printability(mesh_aux)[2],
+        # "stairstep_violation": printability_metrics.get_stairstep_printability(mesh_aux)[2],
+        # "thickness_violation": thickness_printability[2],
+        # "min_thickness": thickness_printability[3],
+        # "gap_violation": gap_printability[2],
+        # "min_gap": gap_printability[3],
     }
     instance_target.update(augmentations)
     return instance_target
@@ -240,20 +240,6 @@ def normalize_mesh(mesh: trimesh.Trimesh, center, normalize_scale):
     return mesh
 
 def save_mesh_and_augmentation(mesh: trimesh.Trimesh, target: dict, augmentations: dict):
-    # mesh = get_augmented_mesh(mesh, augmentations)
-    # Normalize here if appropriate
-    # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-
-    # Normalization Process
-    # TODO make this an option
-    # print("WARNING: Normalization is occurring after augmentation. calculate_and_append_augmentations()")
-    # centroid = np.mean(mesh_aux.vertices, axis=0)
-    # min_bounds = mesh_aux.bound_lower
-    # normalization_translation = -np.array([centroid[0], centroid[1], min_bounds[2]])
-    # scale = max(mesh_aux.bound_length)
-    # normalization_scale = 1.0 / scale
-    # mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
-
     instance_target = calculate_instance_target(mesh, augmentations=augmentations)
     target["instances"].append(instance_target)
 
@@ -272,28 +258,16 @@ def generate_base_dataset(data_root_dir, source_mesh_filenames, save_prefix, mes
         mesh = trimesh.load(mesh_path, force='mesh')
 
         if not trimesh_util.mesh_is_valid(mesh):
-            print("mesh skipped:", i)
+            print("mesh skipped:", mesh_path)
             continue
 
-        if not mesh.is_watertight:
-            print("mesh not watertight. skipped:", i)
-            continue
+        # if not mesh.is_watertight:
+        #     mesh.fill_holes()
+        #     if not mesh.is_watertight:
+        #         print("mesh not watertight. skipped:", mesh_path)
+        #         continue
 
-        # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-
-        # normalization_scale = 1.0
-        # normalization_translation = np.array([0, 0, 0])
-        # if center:
-        #     centroid = np.mean(mesh_aux.vertices, axis=0)
-        #     min_bounds = mesh_aux.bound_lower
-        #     normalization_translation = -np.array([centroid[0], centroid[1], min_bounds[2]])
-        # if normalize_scale:
-        #     scale = max(mesh_aux.bound_length)
-        #     normalization_scale = 1.0 / scale
-
-        # mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
-
-        mesh.apply_scale(mesh_scale)
+        # mesh.apply_scale(mesh_scale)
         try:
             # mesh_info, mesh_to_save = calculate_mesh_info(mesh, save_relative_path=save_mesh_relative_path, orig_mesh_path=mesh_path)
             save_base_mesh_and_target(mesh, mesh_file_manager=mesh_file_manager, mesh_name=base_name, center=center, normalize_scale=normalize_scale)
@@ -343,12 +317,12 @@ def save_generated_dataset_as_numpy(file_manager, max_mesh_per_file, num_points_
     data_files = file_manager.get_target_files(absolute=True)
 
     label_names = [
-        "overhang_violation",
-        "stairstep_violation",
-        "thickness_violation",
-        "gap_violation",
-        "min_thickness",
-        "min_gap",
+        # "overhang_violation",
+        # "stairstep_violation",
+        # "thickness_violation",
+        # "gap_violation",
+        # "min_thickness",
+        # "min_gap",
         "volume",
         "bound_length"
     ]
@@ -466,13 +440,13 @@ if __name__ == "__main__":
     # quick_edit(paths.HOME_PATH + "data_augmentations/")
     # 1/0
     # Generation Parameters
-    outputs_save_path = paths.DATA_PATH + "data_primitives/"
+    outputs_save_path = paths.DATA_PATH + "modelnet_tables/"
 
     mode = "convert_numpy" # generate_initial, add_augmentations, both, convert_numpy
     normalize_center = True
     normalize_scale = False
     if mode == "generate_initial" or mode == "both":
-        use_dataset = "custom" # onshape, thingiverse, custom
+        use_dataset = "modelnet_tables" # onshape, thingiverse, custom
         source_mesh_filenames = []
         if use_dataset == "onshape":
             min_range = 0
@@ -488,14 +462,29 @@ if __name__ == "__main__":
             prefix = "thing"
             for i in range(min_range, max_range):
                 source_mesh_filenames.append(paths.get_thingiverse_stl_path(i, get_by_order=True))
+        elif use_dataset == "primitives":
+            min_range = 0
+            max_range = 5000
+            mesh_scale = 1.0
+            prefix = "cone_hole"
+            file_path = paths.HOME_PATH + "../Datasets/dataset_prim_cone_hole/"
+            contents = os.listdir(file_path)
+            contents.sort()
+            if max_range > len(contents):
+                max_range = len(contents)
+            contents = contents[min_range:max_range]
+            source_mesh_filenames = [file_path + file_name for file_name in contents]
         else:
             min_range = 0
             max_range = 5000
             mesh_scale = 1.0
-            prefix = "cone"
-            file_path = paths.HOME_PATH + "../Dataset_Primitives/"
-            contents = os.listdir(file_path)
-            contents.sort()
+            prefix = "modelnet"
+
+            file_path = paths.HOME_PATH + "../Datasets/ModelNet40/"
+            # folders = os.listdir(file_path)
+            folders = ["chair", "bench", "table", "sofa", "stool"]
+            num_folders = len(folders)
+            contents = paths.get_files_in_folders(base_folder=file_path, files_per_folder=max_range // num_folders, folders=folders, per_folder_subfolder="train")
             contents = contents[min_range:max_range]
             source_mesh_filenames = [file_path + file_name for file_name in contents]
     if mode == "add_augmentations" or mode == "both":
@@ -524,27 +513,15 @@ if __name__ == "__main__":
     if mode == "add_augmentations" or mode == "both":
         augmentation_list = []
         augmentation_list.append({
-            "orientation": {
-                "x": np.pi,
-                "y": 0.0,
-                "z": 0.0
-            },
+            "orientation": {"x": np.pi, "y": 0.0, "z": 0.0},
             "scale": 1
         })
         augmentation_list.append({
-            "orientation": {
-                "x": np.pi/2,
-                "y": 0.0,
-                "z": 0.0
-            },
+            "orientation": {"x": np.pi/2, "y": 0.0, "z": 0.0},
             "scale": 1
         })
         augmentation_list.append({
-            "orientation": {
-                "x": -np.pi/2,
-                "y": 0.0,
-                "z": 0.0
-            },
+            "orientation": {"x": -np.pi/2, "y": 0.0, "z": 0.0},
             "scale": 1
         })
         # augmentation_list.append({
