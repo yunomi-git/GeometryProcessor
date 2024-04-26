@@ -68,9 +68,7 @@ if __name__ == "__main__":
     data_root_dir = paths.DATA_PATH + args["dataset_name"] + "/"
     train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                 partition='train',
-                                                # filter_criteria=filter_criteria, use_augmentations=True,
                                                 data_fraction=args["data_fraction"], use_numpy=True,
-                                                # normalize=args["normalize_inputs"],
                                                 normalize_outputs=args["normalize_outputs"],
                                                 sampling_method=args["sampling_method"],
                                                 outputs_at=args["outputs_at"],
@@ -80,9 +78,7 @@ if __name__ == "__main__":
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                partition='test',
-                                               # filter_criteria=filter_criteria, use_augmentations=False,
                                                data_fraction=args["data_fraction_test"], use_numpy=True,
-                                               # normalize=args["normalize_inputs"],
                                                normalize_outputs=False,
                                                sampling_method=args["sampling_method"],
                                                outputs_at=args["outputs_at"],
@@ -119,4 +115,4 @@ if __name__ == "__main__":
         clip_parameters=True
     )
 
-    regression_manager.train(args, do_test=False, plot_every_n_epoch=1, outputs_at=args["outputs_at"])
+    regression_manager.train(args, do_test=args["do_test"], plot_every_n_epoch=1, outputs_at=args["outputs_at"])

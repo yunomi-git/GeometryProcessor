@@ -49,8 +49,6 @@ def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_crit
             vertices, _ = trimesh.sample.sample_surface(mesh, count=num_points, face_weight=sampling_method)
 
             label = np.array([instance_data[label_name] for label_name in label_names])
-            # if "centroid" in label_names:
-            #     label = np.concatenate((np.mean(vertices, axis=0), )
 
             all_point_clouds.append(vertices)
             all_label.append(label)
@@ -91,27 +89,6 @@ class PointCloudDataset(Dataset):
                                                                      filter_criteria=filter_criteria,
                                                                      use_augmentations=use_augmentations,
                                                                      sampling_method=sampling_method)
-        # Normalize each target
-        # if normalize:
-        #     print("Warning: should not set normalize flag of PointCloudDataset anymore")
-            # # Normalize inputs
-            # # First get bounding boxes
-            # bound_max = np.max(self.point_clouds, axis=1)
-            # bound_min = np.min(self.point_clouds, axis=1)
-            # centroid = np.mean(self.point_clouds, axis=1)
-            # bound_length = np.max(bound_max - bound_min, axis=1) # maximum length
-            # # scale to box of 0, 1
-            # self.normalization_scale = 1.0/bound_length
-            # normalization_scale_multiplier = np.repeat(self.normalization_scale[:, np.newaxis], len(self.point_clouds[0]), axis=1)
-            # normalization_scale_multiplier = np.repeat(normalization_scale_multiplier[:, :, np.newaxis], 3, axis=2)
-            #
-            # centering = np.repeat(centroid[:, np.newaxis, :], num_points*2, axis=1)
-            # self.point_clouds -= centering
-            # self.point_clouds = normalization_scale_multiplier * self.point_clouds
-            #
-            # self.normalization_order = 3
-            # self.label = self.label * np.repeat(np.power(self.normalization_scale, self.normalization_order)[:, np.newaxis], len(self.label[0]), axis=1)
-
         if normalize_outputs:
             print("Normalizing Outputs")
             length = np.max(self.label, axis=0) - np.min(self.label, axis=0)
@@ -156,9 +133,7 @@ class PointCloudDataset(Dataset):
 
         if self.outputs_at == "vertices":
             label = label[p]
-            # label = np.transpose(label, (1, 0))
         pointcloud = pointcloud[p]
-        # pointcloud = np.transpose(pointcloud, (1, 0))
 
         return pointcloud, label, weight
 

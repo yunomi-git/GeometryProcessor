@@ -442,15 +442,15 @@ def save_generated_dataset_as_numpy(file_manager,
 
 if __name__ == "__main__":
     # quick_edit(paths.HOME_PATH + "data_augmentations/")
-    # 1/0
     # Generation Parameters
-    outputs_save_path = paths.DATA_PATH + "mcb_scale_a/"
+    outputs_save_path = paths.DATA_PATH + "th5k_fx/"
 
     mode = "convert_numpy" # generate_initial, add_augmentations, both, convert_numpy
     normalize_center = True
     normalize_scale = True
+
     if mode == "generate_initial" or mode == "both":
-        use_dataset = "custom" # onshape, thingiverse, custom
+        use_dataset = "thingiverse" # onshape, thingiverse, custom
         source_mesh_filenames = []
         if use_dataset == "onshape":
             min_range = 0
@@ -461,11 +461,16 @@ if __name__ == "__main__":
                 source_mesh_filenames.append(paths.get_onshape_stl_path(i, get_by_order=True))
         elif use_dataset == "thingiverse":
             min_range = 0
-            max_range = 300
+            max_range = 10000
             mesh_scale = 1.0
             prefix = "thing"
-            for i in range(min_range, max_range):
-                source_mesh_filenames.append(paths.get_thingiverse_stl_path(i, get_by_order=True))
+            file_path = paths.HOME_PATH + "../Datasets/Dataset_Thingiverse_10k/"
+            contents = os.listdir(file_path)
+            contents.sort()
+            if max_range > len(contents):
+                max_range = len(contents)
+            contents = contents[min_range:max_range]
+            source_mesh_filenames = [file_path + file_name for file_name in contents]
         elif use_dataset == "primitives":
             min_range = 0
             max_range = 5000
@@ -521,7 +526,7 @@ if __name__ == "__main__":
         })
     if mode == "convert_numpy":
         num_points_to_sample = 1e4
-        max_mesh_per_file = 2.5e3
+        max_mesh_per_file = 5.0e3
         sampling_method="even"
     overwrite = False
 
@@ -539,8 +544,6 @@ if __name__ == "__main__":
                               normalize_scale=normalize_scale,
                               center=normalize_center)
     if mode == "add_augmentations" or mode == "both":
-
-
         generate_augmentations_for_dataset(mesh_file_manager=mesh_file_manager,
                                            augmentation_list=augmentation_list,
                                            center=normalize_center,

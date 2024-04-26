@@ -39,7 +39,6 @@ def plot_all(c, r, dataset):
                 # actor.mapper.lookup_table.cmap = 'jet'
                 pl.show_bounds(grid=True, all_edges=True,  font_size=10)
 
-
         pl.link_views()
         pl.show()
 

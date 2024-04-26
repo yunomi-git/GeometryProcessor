@@ -227,7 +227,6 @@ def get_accuracy_tolerance(preds: np.ndarray, actual: np.ndarray, tolerance=0.1)
 def succinct_label_save_name(label_names):
     out = ""
     for name in label_names:
-        name_length = len(name)
         out += name[:5] + "-"
     return out
 

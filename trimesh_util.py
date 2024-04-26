@@ -136,20 +136,7 @@ class MeshAuxilliaryInfo:
         origins, normals = self.sample_and_get_normals(count)
 
         return self.calculate_thickness_at_points(points=origins, normals=normals, return_num_samples=return_num_samples)
-        # min_bound = min(self.bound_length)
-        # normal_scale = 5e-5 * min_bound
-        # facet_offset = -normals * normal_scale # This offset needs to be tuned based on stl dimensions
-        # hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=origins + facet_offset,
-        #                                                            ray_directions=-normals,
-        #                                                            multiple_hits=False)
-        # hit_origins = origins[ray_ids]
-        #
-        # distances = np.linalg.norm(hits - hit_origins, axis=1)
-        # wall_thicknesses = distances
-        # if return_num_samples:
-        #     return hit_origins, wall_thicknesses, len(tri_ids)
-        # else:
-        #     return hit_origins, wall_thicknesses
+
 
     def calculate_thickness_at_points(self, points, normals, return_num_samples=True):
         min_bound = min(self.bound_length)
@@ -383,7 +370,6 @@ def set_default_camera(scene: trimesh.Scene, mesh: trimesh.Trimesh):
     orientation = np.array([np.pi / 2, 0, 0])
     orientation_transform = create_transform_matrix(orientation=orientation)
     translation_transform = create_transform_matrix(translation=centroid + camera_offset)
-    # s.camera_transform = create_transform_matrix(translation=bb_center + position, orientation=orientation)
     scene.camera_transform = translation_transform @ orientation_transform
 
 def show_mesh(mesh):
