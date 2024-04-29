@@ -8,7 +8,7 @@ import numpy as np
 args = {
     # Dataset Param
     "num_points": 4096,
-    "data_fraction": 0.3,
+    "data_fraction": 0.1,
     "sampling_method": "even",
     "imbalanced_weighting_bins": 1, #1 means no weighting
     "remove_outlier_ratio": 0.1, # 0 means remove no outliers
@@ -32,22 +32,22 @@ def plot_all(c, r, dataset):
                     points=cloud,
                     # scalars=curvature,
                     render_points_as_spheres=True,
-                    point_size=10,
+                    point_size=5,
                     show_scalar_bar=True,
                     # text="Curvature"
                 )
                 # actor.mapper.lookup_table.cmap = 'jet'
-                pl.show_bounds(grid=True, all_edges=True,  font_size=10)
+                pl.show_bounds(grid=True, all_edges=False,  font_size=10)
 
         pl.link_views()
         pl.show()
 
 if __name__=="__main__":
-    path = paths.DATA_PATH + "mcb_scale_a/"
+    path = paths.DATA_PATH + "th5k_fx/"
     # file_manager = MeshDatasetFileManager(path)
     dataset = PointCloudDataset(path, args['num_points'], label_names=label_names,
                       partition='train',
-                      data_fraction=args["data_fraction"], use_numpy=True,
+                      data_fraction=args["data_fraction"],
                       sampling_method=args["sampling_method"],
                       outputs_at=args["outputs_at"],
                       imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
@@ -66,7 +66,7 @@ if __name__=="__main__":
     print("min_length: ", np.min(lengths, axis=0))
     print("max_length: ", np.max(lengths, axis=0))
 
-    plot_all(5, 6, dataset)
+    plot_all(6, 6, dataset)
     # for i in range(len(dataset)):
     #     # a = dataset[i]
     #     cloud, labels, _ = dataset[i]

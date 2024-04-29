@@ -133,7 +133,7 @@ class RegressionTools:
             res_train_history.append(res)
 
             # Loss
-            if plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0:
+            if (plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0) or epoch + 1 == args['epochs']:
                 timer = Stopwatch()
                 timer.start()
                 plt.figure(0)

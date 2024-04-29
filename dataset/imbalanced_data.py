@@ -150,7 +150,7 @@ def draw_weights(data, weights):
 def debug_filter_outliers():
     file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
     label_names = ["surface_area"]
-    _, data = file_manager.load_numpy_pointclouds(1, outputs_at="global", desired_label_names=label_names)
+    _, data, _ = file_manager.load_numpy_pointclouds(1, outputs_at="global", desired_label_names=label_names)
     num_bins = 10
 
     # First look at default
@@ -169,7 +169,7 @@ def debug_filter_outliers():
 def debug_filter_outliers_vertices():
     file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
     label_names = ["thickness"]
-    _, data = file_manager.load_numpy_pointclouds(5, outputs_at="vertices", desired_label_names=label_names)
+    _, data, _ = file_manager.load_numpy_pointclouds(5, outputs_at="vertices", desired_label_names=label_names)
     num_bins = 10
 
     # First look at default
@@ -189,7 +189,7 @@ def debug_draw_weights():
     # Harder test case
     file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
     label_names = ["thickness"]
-    _, data = file_manager.load_numpy_pointclouds(1, outputs_at="vertices", desired_label_names=label_names)
+    _, data, _ = file_manager.load_numpy_pointclouds(1, outputs_at="vertices", desired_label_names=label_names)
     # data = np.array(data[:1000]).flatten()
     # data = data.flatten()
     num_bins = 10
@@ -200,7 +200,7 @@ def debug_draw_weights_vertices():
     # Harder test case
     file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
     label_names = ["thickness"]
-    _, data = file_manager.load_numpy_pointclouds(1000, outputs_at="vertices", desired_label_names=label_names)
+    _, data, _ = file_manager.load_numpy_pointclouds(1000, outputs_at="vertices", desired_label_names=label_names)
     # data = np.array(data[:1000]).flatten()
     # data is clouds x vertices x 1
 
@@ -224,7 +224,7 @@ def debug_print():
     # Harder test case
     file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
     label_names = ["volume"]
-    _, data = file_manager.load_numpy_pointclouds(1, outputs_at="global", desired_label_names=label_names)
+    _, data, _ = file_manager.load_numpy_pointclouds(1, outputs_at="global", desired_label_names=label_names)
     # data = np.array(data[:1000]).flatten()
     data = data.flatten()
     num_bins = 1

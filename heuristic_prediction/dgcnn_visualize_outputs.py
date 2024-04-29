@@ -25,11 +25,12 @@ label_names = ["thickness"]
 device = "cuda"
 
 
-def comparison(model, mesh, count):
-    mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-    cloud, actual = mesh_aux.calculate_thicknesses_samples(count=count)
-    # cloud, normals = mesh_aux.sample_and_get_normals(count=count, use_weight="even", return_face_ids=False)
-    cloud_tens = torch.from_numpy(cloud).float()
+
+def comparison(model, dataloader, i):
+    augmented_cloud, actual, _ = dataloader[i]
+    cloud = augmented_cloud[:, :3]
+
+    cloud_tens = torch.from_numpy(augmented_cloud).float()
     cloud_tens = cloud_tens.to(device)
     preds = model(cloud_tens[None, :, :])
     preds = preds.detach().cpu().numpy()
@@ -39,7 +40,7 @@ def comparison(model, mesh, count):
     pl.subplot(0, 0)
     actor = pl.add_points(
         cloud,
-        scalars=actual,
+        scalars=actual.flatten(),
         render_points_as_spheres=True,
         point_size=10,
         show_scalar_bar=True,
@@ -61,6 +62,44 @@ def comparison(model, mesh, count):
 
     pl.link_views()
     pl.show()
+
+
+# def comparison(model, mesh, count):
+#     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+#     cloud, actual = mesh_aux.calculate_thicknesses_samples(count=count)
+#     # cloud, normals = mesh_aux.sample_and_get_normals(count=count, use_weight="even", return_face_ids=False)
+#     cloud_tens = torch.from_numpy(cloud).float()
+#     cloud_tens = cloud_tens.to(device)
+#     preds = model(cloud_tens[None, :, :])
+#     preds = preds.detach().cpu().numpy()
+#     preds = preds[:, :, 0].flatten()
+#
+#     pl = pv.Plotter(shape=(1, 2))
+#     pl.subplot(0, 0)
+#     actor = pl.add_points(
+#         cloud,
+#         scalars=actual,
+#         render_points_as_spheres=True,
+#         point_size=10,
+#         show_scalar_bar=True,
+#         # text="Curvature"
+#     )
+#     pl.add_text('Actual', color='black')
+#     actor.mapper.lookup_table.cmap = 'jet'
+#
+#     pl.subplot(0, 1)
+#     actor = pl.add_points(
+#         cloud,
+#         scalars=preds,
+#         render_points_as_spheres=True,
+#         point_size=10,
+#         show_scalar_bar=True,
+#     )
+#     pl.add_text('Pred', color='black')
+#     actor.mapper.lookup_table.cmap = 'jet'
+#
+#     pl.link_views()
+#     pl.show()
 
 def show_inference_pointcloud(model, cloud):
     cloud_tens = torch.from_numpy(cloud)
@@ -100,16 +139,16 @@ def display_clouds(model, path):
         cloud, labels, _ = dataset[i]
         show_inference_pointcloud(model, cloud)
 
-def display_meshes(model, path):
-    file_manager = MeshDatasetFileManager(path)
-    mesh_files = file_manager.get_mesh_files(absolute=True)
-    for file in mesh_files:
-        mesh = trimesh.load(file)
+def display_meshes(model, dataset):
+    # file_manager = MeshDatasetFileManager(path)
+    # mesh_files = file_manager.get_mesh_files(absolute=True)
+    for i in range(len(dataset)):
+        # mesh = trimesh.load(file)
         # show_inference_mesh(model, mesh, args['num_points'])
-        comparison(model, mesh, args['num_points'])
+        comparison(model, dataset, i)
 
 if __name__=="__main__":
-    path = paths.DATA_PATH + "mcb_scale_a/"
+    path = paths.DATA_PATH + "th5k_fx/"
 
     save_path = paths.select_file(choose_type="folder")
     arg_path = save_path + "args.json"
@@ -123,7 +162,17 @@ if __name__=="__main__":
     checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint)
 
-    display_meshes(model, path)
+    dataset = PointCloudDataset(path, model_args['num_points'], label_names=label_names,
+                                append_label_names=model_args['input_append_label_names'],
+                                partition='train',
+                                data_fraction=model_args["data_fraction"],
+                                normalize_outputs=model_args["normalize_outputs"],
+                                sampling_method=model_args["sampling_method"],
+                                outputs_at=model_args["outputs_at"],
+                                imbalance_weight_num_bins=model_args["imbalanced_weighting_bins"],
+                                remove_outlier_ratio=model_args["remove_outlier_ratio"])
+
+    display_meshes(model, dataset)
 
 
 

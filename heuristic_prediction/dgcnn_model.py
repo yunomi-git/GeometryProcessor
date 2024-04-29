@@ -68,7 +68,7 @@ class DGCNN_param(nn.Module):
         self.conv_channel_sizes = args["conv_channel_sizes"]
         self.linear_sizes = args["linear_sizes"]
 
-        self.input_dims = 6
+        self.input_dims = 2 * args["input_dims"]
         self.conv_emb_dims = args["emb_dims"]
         self.output_dim = args["num_outputs"]
 
@@ -160,7 +160,7 @@ class DGCNN_segment(nn.Module):
 
         self.outputs_at = args["outputs_at"] # +global or vertices
 
-        self.input_dims = 6
+        self.input_dims = 2 * args["input_dims"]
         self.conv_emb_dims = args["emb_dims"]
         self.output_dim = args["num_outputs"]
 

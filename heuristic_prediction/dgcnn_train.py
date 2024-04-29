@@ -15,8 +15,15 @@ label_names = [
     "thickness",
 ]
 
+input_append_label_names = [
+    "nx",
+    "ny",
+    "nz"
+]
+
 model_args = {
     "num_points": 2048,
+    "input_dims": 3 + len(input_append_label_names),
     "conv_channel_sizes": [128, 128, 256, 512],  # Default: [64, 64, 128, 256] #Mo: [512, 512, 1024]
     "emb_dims": 512,
     "linear_sizes": [1024, 512, 256, 128, 64, 32, 16],  # [512, 256] #Mo: [1024, 512, 256, 128, 64, 32, 16]
@@ -32,18 +39,19 @@ args = {
     "dataset_name": "mcb_scale_a",
     "exp_name": experiment_name,
     "label_names": label_names,
-    "seed": 1,
+    "input_append_label_names": input_append_label_names,
+    "seed": 2,
 
     # Dataset Param
     "data_fraction": 1.0,
     "data_fraction_test": 1.0 / 4,
-    "do_test": True,
+    "do_test": False,
     "workers": 24,
 
     "sampling_method": "even",
     "imbalanced_weighting_bins": 1, #1 means no weighting
     "normalize_outputs": False,
-    "remove_outlier_ratio": 0.1, # 0 means remove no outliers
+    "remove_outlier_ratio": 0, # 0 means remove no outliers
 
     # Opt Param
     "batch_size": 16,
@@ -67,24 +75,26 @@ if __name__ == "__main__":
     seed_all(args["seed"])
     data_root_dir = paths.DATA_PATH + args["dataset_name"] + "/"
     train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
+                                                append_label_names=args['input_append_label_names'],
                                                 partition='train',
-                                                data_fraction=args["data_fraction"], use_numpy=True,
+                                                data_fraction=args["data_fraction"],
                                                 normalize_outputs=args["normalize_outputs"],
                                                 sampling_method=args["sampling_method"],
                                                 outputs_at=args["outputs_at"],
                                                 imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
                                                 remove_outlier_ratio=args["remove_outlier_ratio"]),
-                              num_workers=24,
+                              num_workers=args["workers"],
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
+                                               append_label_names=args['input_append_label_names'],
                                                partition='test',
-                                               data_fraction=args["data_fraction_test"], use_numpy=True,
+                                               data_fraction=args["data_fraction_test"],
                                                normalize_outputs=False,
                                                sampling_method=args["sampling_method"],
                                                outputs_at=args["outputs_at"],
                                                imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
                                                remove_outlier_ratio=args["remove_outlier_ratio"]),
-                             num_workers=24,
+                             num_workers=args["workers"],
                              batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 
     ### Model ###
@@ -115,4 +125,4 @@ if __name__ == "__main__":
         clip_parameters=True
     )
 
-    regression_manager.train(args, do_test=args["do_test"], plot_every_n_epoch=1, outputs_at=args["outputs_at"])
+    regression_manager.train(args, do_test=args["do_test"], plot_every_n_epoch=5, outputs_at=args["outputs_at"])
