@@ -113,7 +113,7 @@ class RegressionTools:
                 train_pred = train_pred.reshape(
                     (train_pred.shape[0] * train_pred.shape[1], train_pred.shape[2]),
                     order="F")
-
+            # TODO Prediction sometimes contain NAN. Fix!!
             res = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values') #num_val x dims
             acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.05)
 

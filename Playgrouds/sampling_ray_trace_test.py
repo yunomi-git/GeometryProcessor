@@ -14,7 +14,7 @@ NO_GAP_VALUE = -1
 
 def sample_and_get_normals(mesh, mesh_aux: trimesh_util.MeshAuxilliaryInfo):
     sample_points, face_index = trimesh.sample.sample_surface_even(mesh, 50000)
-    normals = mesh_aux.facet_normals[face_index]
+    normals = mesh_aux.face_normals[face_index]
     return sample_points, normals
 
 def show_sampled_thickness(mesh):

@@ -14,7 +14,7 @@ def get_large_areas(mesh):
     trimesh.repair.fix_normals(mesh, multibody=True)
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
-    areas = mesh_aux.facet_areas
+    areas = mesh_aux.face_areas
     median_area = np.median(areas)
     maximum_area = median_area * 3.0
     large_areas = (areas > maximum_area).nonzero()

@@ -7,7 +7,7 @@ from pytorch3d.structures.meshes import Meshes
 import torch
 import torch.optim as optim
 import math
-from Generation.dgcnn_differentiable_thickness_prediction import DgcnnThickness, get_thickness_loss
+from Generation.dgcnn_differentiable_thickness_prediction import DgcnnThickness
 from pytorch3d.loss import (
     chamfer_distance,
     mesh_edge_loss,
@@ -23,9 +23,10 @@ def show_mesh(meshes: Meshes):
 
 if __name__ == "__main__":
     # mesh = trimesh.load(paths.DATASETS_PATH + "Dataset_Thingiverse_10k_Remesh2/32770.stl")
-    mesh = trimesh.load(paths.HOME_PATH + "stls/sphere.stl")
+    mesh = trimesh.load(paths.HOME_PATH + "stls/Cube.stl")
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
+    ### Process the mesh
     # First scale mesh down
     centroid = np.mean(mesh_aux.vertices, axis=0)
     min_bounds = mesh_aux.bound_lower
@@ -42,6 +43,8 @@ if __name__ == "__main__":
                                                  orientation=orientation)
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
+
+    ### Initialize the training
     device = torch.device("cuda")
 
     tensor_verts = torch.from_numpy(mesh_aux.vertices).float().to(device)
@@ -52,8 +55,6 @@ if __name__ == "__main__":
     optimizer = optim.Adam([deform_verts], lr=1e-3)
     # optimizer = torch.optim.SGD([deform_verts], lr=1.0, momentum=0.9)
     # optimizer = optim.Adagrad([deform_verts], lr=1e-3)
-
-    thickness_predictor = DgcnnThickness()
 
 
     plot_every_num = 50
@@ -74,12 +75,9 @@ if __name__ == "__main__":
         overhang_loss = normals.loss_mesh_overhangs(new_mesh) # 1e-4
         # stairstep_loss = normals.loss_mesh_stairsteps(new_mesh) # 1e-4
         regularization_loss = torch.mean(torch.norm(deform_verts, dim=1))
-        thicknesses = thickness_predictor.get_thickness(new_mesh)
-        thickness_loss = get_thickness_loss(thicknesses)
 
         loss = (
-                # overhang_loss
-                thickness_loss
+                overhang_loss
                 # stairstep_loss
                 # + 1e-2 * smoothing_loss
                 # + 1e0 * loss_normal #+

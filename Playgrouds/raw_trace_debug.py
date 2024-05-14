@@ -4,14 +4,14 @@ import trimesh_util
 import paths
 
 def get_hit_for_facet(i, mesh, mesh_aux):
-    hits = mesh.ray.intersects_location(ray_origins=mesh_aux.facet_centroids[np.newaxis, i, :],
-                                        ray_directions=-mesh_aux.facet_normals[np.newaxis, i, :],
+    hits = mesh.ray.intersects_location(ray_origins=mesh_aux.face_centroids[np.newaxis, i, :],
+                                        ray_directions=-mesh_aux.face_normals[np.newaxis, i, :],
                                         multiple_hits=True)[0]
     # first_hit = hits[0]
     # start = mesh_aux.facet_centroids[i, :]
     # end = first_hit
     # return start, end
-    if np.isclose(hits[0, :], mesh_aux.facet_centroids[i, :]).all():
+    if np.isclose(hits[0, :], mesh_aux.face_centroids[i, :]).all():
         hits = hits[1:, :]
     return hits
 
@@ -24,13 +24,13 @@ if __name__=="__main__":
     trimesh.repair.fix_normals(mesh, multibody=True)
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
-    num_facets = mesh_aux.num_facets
+    num_facets = mesh_aux.num_faces
 
     for i in range(num_facets):
         s = trimesh.Scene()
 
         hits = get_hit_for_facet(i, mesh, mesh_aux)
-        start = mesh_aux.facet_centroids[i, :]
+        start = mesh_aux.face_centroids[i, :]
         # distances = np.linalg.norm(start - end)
 
         # Create the line

@@ -36,7 +36,7 @@ def comparison(model, dataloader, i):
     preds = preds.detach().cpu().numpy()
     preds = preds[:, :, 0].flatten()
 
-    pl = pv.Plotter(shape=(1, 2))
+    pl = pv.Plotter(shape=(1, 3))
     pl.subplot(0, 0)
     actor = pl.add_points(
         cloud,
@@ -60,46 +60,20 @@ def comparison(model, dataloader, i):
     pl.add_text('Pred', color='black')
     actor.mapper.lookup_table.cmap = 'jet'
 
+    # pl.subplot(0, 2)
+    # actor = pl.add_points(
+    #     cloud,
+    #     scalars=preds - actual.flatten(),
+    #     render_points_as_spheres=True,
+    #     point_size=10,
+    #     show_scalar_bar=True,
+    # )
+    # pl.add_text('Error', color='black')
+    # actor.mapper.lookup_table.cmap = 'jet'
+
     pl.link_views()
     pl.show()
 
-
-# def comparison(model, mesh, count):
-#     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-#     cloud, actual = mesh_aux.calculate_thicknesses_samples(count=count)
-#     # cloud, normals = mesh_aux.sample_and_get_normals(count=count, use_weight="even", return_face_ids=False)
-#     cloud_tens = torch.from_numpy(cloud).float()
-#     cloud_tens = cloud_tens.to(device)
-#     preds = model(cloud_tens[None, :, :])
-#     preds = preds.detach().cpu().numpy()
-#     preds = preds[:, :, 0].flatten()
-#
-#     pl = pv.Plotter(shape=(1, 2))
-#     pl.subplot(0, 0)
-#     actor = pl.add_points(
-#         cloud,
-#         scalars=actual,
-#         render_points_as_spheres=True,
-#         point_size=10,
-#         show_scalar_bar=True,
-#         # text="Curvature"
-#     )
-#     pl.add_text('Actual', color='black')
-#     actor.mapper.lookup_table.cmap = 'jet'
-#
-#     pl.subplot(0, 1)
-#     actor = pl.add_points(
-#         cloud,
-#         scalars=preds,
-#         render_points_as_spheres=True,
-#         point_size=10,
-#         show_scalar_bar=True,
-#     )
-#     pl.add_text('Pred', color='black')
-#     actor.mapper.lookup_table.cmap = 'jet'
-#
-#     pl.link_views()
-#     pl.show()
 
 def show_inference_pointcloud(model, cloud):
     cloud_tens = torch.from_numpy(cloud)
@@ -140,15 +114,11 @@ def display_clouds(model, path):
         show_inference_pointcloud(model, cloud)
 
 def display_meshes(model, dataset):
-    # file_manager = MeshDatasetFileManager(path)
-    # mesh_files = file_manager.get_mesh_files(absolute=True)
     for i in range(len(dataset)):
-        # mesh = trimesh.load(file)
-        # show_inference_mesh(model, mesh, args['num_points'])
         comparison(model, dataset, i)
 
 if __name__=="__main__":
-    path = paths.DATA_PATH + "th5k_fx/"
+    path = paths.DATA_PATH + "mcb_scale_a/"
 
     save_path = paths.select_file(choose_type="folder")
     arg_path = save_path + "args.json"

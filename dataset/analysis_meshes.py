@@ -66,7 +66,7 @@ if __name__ == "__main__":
             metrics.add_element({
                 "vertices": mesh_aux.num_vertices,
                 "edges": mesh_aux.num_edges,
-                "faces": mesh_aux.num_facets,
+                "faces": mesh_aux.num_faces,
                 "scale": np.max(mesh_aux.bound_length),
                 "num_objects": mesh.body_count,
                 "volume": mesh.volume,

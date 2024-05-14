@@ -14,12 +14,12 @@ def calculate_and_show_gap(mesh):
     trimesh.repair.fix_normals(mesh, multibody=True)
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
-    num_facets = mesh_aux.num_facets
+    num_facets = mesh_aux.num_faces
     gap_sizes = np.empty(num_facets)
 
     for i in tqdm(range(num_facets)):
-        normal = mesh_aux.facet_normals[i,:]
-        origin = mesh_aux.facet_centroids[i,:]
+        normal = mesh_aux.face_normals[i, :]
+        origin = mesh_aux.face_centroids[i, :]
         facet_offset = normal * 0.001
         hits = mesh.ray.intersects_location(ray_origins=(origin + facet_offset)[np.newaxis, :],
                                             ray_directions=normal[np.newaxis, :],

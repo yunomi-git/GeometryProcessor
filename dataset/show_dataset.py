@@ -10,12 +10,12 @@ import util
 from process_and_save import calculate_instance_target, get_augmented_mesh
 
 if __name__ == "__main__":
-    mode = "multi" # single or multi
+    mode = "single" # single or multi
     if mode == "single":
         # Single STL
         # mesh_path = paths.get_onshape_stl_path(233)
         # mesh_path = paths.get_thingiverse_stl_path(258, get_by_order=True)
-        mesh_path = paths.HOME_PATH + 'stls/Cone.stl'
+        mesh_path = paths.HOME_PATH + 'stls/Octocat.stl'
         mesh = trimesh.load(mesh_path)
         # trimesh_util.show_mesh(mesh)
         #
@@ -47,10 +47,12 @@ if __name__ == "__main__":
 
         ## Samples
         # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-        # points, values = mesh_aux.calculate_curvature_samples(use_gaussian=True, count=10000)
+        points, values = mesh_aux.calculate_curvature_samples(curvature_method="abs", count=5000)
+        # samples, normals = mesh_aux.get_vertices_and_normals()
+        # points, values = mesh_aux.calculate_thickness_at_points(samples, normals, return_num_samples=False)
         # points, values = mesh_aux.calculate_gap_samples()
 
-        points, values = mesh_aux.calculate_thicknesses_samples()
+        # points, values = mesh_aux.calculate_thicknesses_samples()
         # characteristic_length = np.mean(mesh_aux.bound_length) / 20.0
         # points[values > characteristic_length] = trimesh_util.NO_GAP_VALUE
 

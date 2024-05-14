@@ -26,19 +26,24 @@ class MeshAuxilliaryInfo:
         if not self.is_valid:
             return
 
+        # try:
         trimesh.repair.fix_normals(mesh, multibody=True)
+        # except RuntimeError:
+        #     self.is_valid = False
+        #     return
+
         self.mesh = mesh
 
         self.bound_lower = mesh.bounds[0, :].copy()
         self.bound_upper = mesh.bounds[1, :].copy()
         self.bound_length = self.bound_upper - self.bound_lower
 
-        self.facet_centroids = mesh.triangles_center
-        self.facet_normals = mesh.face_normals
-        self.facet_areas = mesh.area_faces
+        self.face_centroids = mesh.triangles_center
+        self.face_normals = mesh.face_normals
+        self.face_areas = mesh.area_faces
         self.surface_area = mesh.area
-        self.num_facets = len(self.facet_centroids)
-        self.facets = mesh.faces
+        self.num_faces = len(self.face_centroids)
+        self.faces = mesh.faces
         self.facet_defects = None
 
         self.edges = mesh.edges
@@ -46,6 +51,13 @@ class MeshAuxilliaryInfo:
 
         self.vertices = mesh.vertices
         self.num_vertices = len(self.vertices)
+        self.vertex_normals = mesh.vertex_normals
+
+    def get_vertices_and_normals(self):
+        return self.vertices, self.vertex_normals
+
+    def get_centroids_and_normals(self, return_face_ids=False):
+        return self.face_centroids, self.face_normals
 
     def sample_and_get_normals(self, count=5000, use_weight="even", return_face_ids=False):
         ## even, curvature, face_area
@@ -73,7 +85,7 @@ class MeshAuxilliaryInfo:
             even_count = len(even_sample_points)
 
             surface_defects = self.calculate_surface_defects_facets(use_abs=True)
-            log_defects = np.log(np.abs(surface_defects) + 1e-5) * self.facet_areas
+            log_defects = np.log(np.abs(surface_defects) + 1e-5) * self.face_areas
             if np.isnan(log_defects).any():
                 print("NAN encountered")
             # Convert to probabilities
@@ -90,7 +102,7 @@ class MeshAuxilliaryInfo:
         else: # use_weight == "face_area":
             sample_points, face_index = trimesh.sample.sample_surface(mesh=self.mesh, count=count)
 
-        normals = self.facet_normals[face_index]
+        normals = self.face_normals[face_index]
 
         if return_face_ids:
             return sample_points, normals, face_index
@@ -176,30 +188,25 @@ class MeshAuxilliaryInfo:
     def calculate_curvature_samples(self, curvature_method="defect", count=50000, return_num_samples=False, sampling_method="even"):
         ## Methods: gaussian, mean, face
         origins, _, face_ids = self.sample_and_get_normals(count, use_weight=sampling_method, return_face_ids=True)
-        return self.calculate_curvature_at_points(origins=origins, face_ids=face_ids, curvature_method=curvature_method, return_num_samples=return_num_samples)
-        # min_facet_radii = np.sqrt(np.min(self.facet_areas)) / np.pi
-        # if curvature_method== "gaussian":
-        #     curvatures = trimesh.curvature.discrete_gaussian_curvature_measure(self.mesh, origins, radius=min_facet_radii/10)
-        # elif curvature_method== "mean":
-        #     curvatures = trimesh.curvature.discrete_mean_curvature_measure(self.mesh, origins, radius=min_facet_radii/10)
-        # else: # "defect"
-        #     face_defects = self.calculate_surface_defects_facets(use_abs=True)
-        #     curvatures = face_defects[face_ids]
-        #
-        # if return_num_samples:
-        #     return origins, curvatures, len(origins)
-        # else:
-        #     return origins, curvatures
+        return self.calculate_curvature_at_points(origins=origins, face_ids=face_ids,
+                                                  curvature_method=curvature_method,
+                                                  return_num_samples=return_num_samples)
 
-    def calculate_curvature_at_points(self, origins, face_ids, curvature_method="defect", return_num_samples=False, use_abs=True):
-        min_facet_radii = np.sqrt(np.min(self.facet_areas)) / np.pi
+    def calculate_curvature_at_points(self, origins, face_ids, curvature_method="abs", return_num_samples=False, use_abs=True):
+        avg_facet_radii = np.sqrt(np.mean(self.face_areas)) / np.pi
         if curvature_method== "gaussian":
-            curvatures = trimesh.curvature.discrete_gaussian_curvature_measure(self.mesh, origins, radius=min_facet_radii/10)
+            curvatures = trimesh.curvature.discrete_gaussian_curvature_measure(self.mesh, origins, radius=avg_facet_radii * 20)
         elif curvature_method== "mean":
-            curvatures = trimesh.curvature.discrete_mean_curvature_measure(self.mesh, origins, radius=min_facet_radii/10)
+            curvatures = trimesh.curvature.discrete_mean_curvature_measure(self.mesh, origins, radius=avg_facet_radii * 20)
+        elif curvature_method == "abs":
+            radius = avg_facet_radii * 10
+            g = trimesh.curvature.discrete_gaussian_curvature_measure(self.mesh, origins, radius=radius)
+            m = trimesh.curvature.discrete_mean_curvature_measure(self.mesh, origins, radius=radius)
+            curvatures = np.abs(g) + np.abs(m)
         else: # "defect"
             face_defects = self.calculate_surface_defects_facets(use_abs=use_abs)
             curvatures = face_defects[face_ids]
+
 
         if return_num_samples:
             return origins, curvatures, len(origins)
@@ -220,7 +227,7 @@ class MeshAuxilliaryInfo:
 
         vertices, defects = self.calculate_surface_defect_vertices()
         # Faces take the sum of defects of vertices
-        face_defects_mapped = defects[self.facets]
+        face_defects_mapped = defects[self.faces]
         if use_abs:
             face_defects = np.sum(np.abs(face_defects_mapped), axis=1)
         else:
@@ -230,7 +237,7 @@ class MeshAuxilliaryInfo:
 
     def get_vertices_of_facets(self, facet_indices):
         # Get list of faces
-        facets = self.facets[facet_indices]
+        facets = self.faces[facet_indices]
         # convert to 1D and remove duplicates
         vertices = set(facets.reshape(len(facets) * 3))
         return vertices
@@ -238,14 +245,14 @@ class MeshAuxilliaryInfo:
     def calculate_thicknesses_facets(self):
         trimesh.repair.fix_normals(self.mesh, multibody=True)
 
-        num_facets = self.num_facets
+        num_facets = self.num_faces
 
-        facet_offset = -self.facet_normals * 0.001
-        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=self.facet_centroids + facet_offset,
-                                                 ray_directions=-self.facet_normals,
-                                                 multiple_hits=False)
+        facet_offset = -self.face_normals * 0.001
+        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=self.face_centroids + facet_offset,
+                                                                   ray_directions=-self.face_normals,
+                                                                   multiple_hits=False)
 
-        hit_origins = self.facet_centroids[tri_ids]
+        hit_origins = self.face_centroids[tri_ids]
         distances = np.linalg.norm(hits - hit_origins, axis=1)
         wall_thicknesses = np.ones(num_facets) * NO_GAP_VALUE
         wall_thicknesses[tri_ids] = distances
@@ -255,13 +262,13 @@ class MeshAuxilliaryInfo:
     def calculate_gap_facets(self):
         trimesh.repair.fix_normals(self.mesh, multibody=True)
 
-        num_facets = self.num_facets
+        num_facets = self.num_faces
 
-        facet_offset = self.facet_normals * 0.1
-        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=self.facet_centroids + facet_offset,
-                                                                   ray_directions=self.facet_normals,
+        facet_offset = self.face_normals * 0.1
+        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=self.face_centroids + facet_offset,
+                                                                   ray_directions=self.face_normals,
                                                                    multiple_hits=False)
-        hit_origins = self.facet_centroids[tri_ids]
+        hit_origins = self.face_centroids[tri_ids]
         distances = np.linalg.norm(hits - hit_origins, axis=1)
         gap_sizes = np.ones(num_facets) * NO_GAP_VALUE
         gap_sizes[tri_ids] = distances
@@ -312,7 +319,34 @@ def get_largest_submesh(mesh: trimesh.Trimesh):
         mesh = largest_submesh
     return mesh
 
-def show_sampled_values(mesh, points, values, normalize=True, scale=None):
+def get_valid_submeshes(mesh: trimesh.Trimesh):
+    valid_meshes = []
+    splits = list(mesh.split(only_watertight=True))
+    for submesh in splits:
+        mesh_aux = MeshAuxilliaryInfo(submesh)
+        if mesh_aux.is_valid:
+            valid_meshes.append(submesh)
+    return valid_meshes
+
+def normalize_mesh(mesh: trimesh.Trimesh, center, normalize_scale):
+    mesh_aux = MeshAuxilliaryInfo(mesh)
+    normalization_scale = 1.0
+    normalization_translation = np.array([0, 0, 0])
+    if center:
+        centroid = np.mean(mesh_aux.vertices, axis=0)
+        min_bounds = mesh_aux.bound_lower
+        normalization_translation = -np.array([centroid[0], centroid[1], min_bounds[2]])
+    if normalize_scale:
+        scale = max(mesh_aux.bound_length)
+        normalization_scale = 1.0 / scale
+
+    mesh = get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
+    return mesh
+
+
+##### Visualization
+
+def show_sampled_values(mesh, points, values, normalize=True, scale=None, alpha=0.8):
     s = trimesh.Scene()
     if len(points) > 0:
         if normalize:
@@ -324,7 +358,7 @@ def show_sampled_values(mesh, points, values, normalize=True, scale=None):
         cmapname = 'jet'
         cmap = plt.get_cmap(cmapname)
         colors = 255.0 * cmap(values)
-        colors[:, 3] = int(0.8 * 255)
+        colors[:, 3] = int(alpha * 255)
         point_cloud = trimesh.points.PointCloud(vertices=points,
                                                 colors=colors)
         s.add_geometry(point_cloud)
@@ -387,7 +421,7 @@ def show_meshes(meshes):
 
 def show_mesh_with_orientation(mesh):
     mesh_aux = MeshAuxilliaryInfo(mesh)
-    colors = util.direction_to_color(mesh_aux.facet_normals)
+    colors = util.direction_to_color(mesh_aux.face_normals)
     mesh.visual.face_colors = colors
     s = trimesh.Scene()
     set_default_camera(s, mesh)
@@ -396,7 +430,7 @@ def show_mesh_with_orientation(mesh):
 
 def show_mesh_with_z_normal(mesh):
     mesh_aux = MeshAuxilliaryInfo(mesh)
-    colors = util.z_normal_mag_to_color(mesh_aux.facet_normals)
+    colors = util.z_normal_mag_to_color(mesh_aux.face_normals)
     mesh.visual.face_colors = colors
 
     s = trimesh.Scene()

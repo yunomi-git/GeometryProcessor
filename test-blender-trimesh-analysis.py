@@ -29,11 +29,11 @@ def convert_trimesh_to_blender(trimesh_mesh, name="a"):
     # Vertices
     num_vertices = trimesh_aux.num_vertices
     # num_edges = trimesh_aux.num_edges
-    num_facets = trimesh_aux.num_facets
+    num_facets = trimesh_aux.num_faces
 
     vertices = np.array(trimesh_aux.vertices).reshape(num_vertices * 3).astype(np.float32)
     # edges = trimesh_aux.edges.reshape(num_edges * 2).astype(np.int32)
-    vertex_index = np.array(trimesh_aux.facets).reshape(num_facets * 3).astype(np.int32)
+    vertex_index = np.array(trimesh_aux.faces).reshape(num_facets * 3).astype(np.int32)
 
     # For each polygon the start of its vertex indices in the vertex_index array
     loop_start = np.arange(0, num_facets).astype(np.int32) * 3

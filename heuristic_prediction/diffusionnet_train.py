@@ -22,9 +22,10 @@ torch.cuda.empty_cache()
 label_names = [
     # "overhang_violation",
     # "stairstep_violation",
-    "thickness_violation",
+    # "thickness_violation",
     # "gap_violation",
-    # "volume"
+    "volume"
+    # "surface_area"
 ]
 
 model_args = {
@@ -45,11 +46,15 @@ model_args = {
 experiment_name = succinct_label_save_name(label_names)
 
 args = {
+    "dataset_name": "mcb_scale_a",
+    "testset_name": "mcb_test",
     "exp_name": experiment_name,
     "label_names": label_names,
+    # "input_append_label_names": input_append_label_names,
+    "seed": 2,
 
     # Dataset Param
-    "data_fraction": 0.3,
+    "data_fraction": 1.0,
     "data_fraction_test": 0.15,
     "workers": 24,
     "grad_acc_steps": 2,
@@ -66,7 +71,6 @@ args = {
     "num_lr_reductions": 8,
     "lr_reduction_gamma": 0.5,
     "weight_decay": 1e-4,
-    "seed": 1,
 }
 
 args.update(model_args)
@@ -86,17 +90,19 @@ def filter_criteria(mesh, instance_data) -> bool:
     return True
 
 if __name__=="__main__":
-    dataset_path = paths.DATA_PATH + "data_th5k_norm/"
-    op_cache_dir = dataset_path + "op_cache"
+    seed_all(args["seed"])
+    data_root_dir = paths.DATA_PATH + args["dataset_name"] + "/"
+    test_root_dir = paths.DATA_PATH + args["testset_name"] + "/"
+    op_cache_dir = data_root_dir + "op_cache"
 
-    train_loader = DataLoader(DiffusionNetDataset(dataset_path, split_size, model_args["k_eig"],
+    train_loader = DataLoader(DiffusionNetDataset(data_root_dir, split_size, model_args["k_eig"],
                                                  filter_criteria=filter_criteria, op_cache_dir=op_cache_dir,
                                                  data_fraction=args["data_fraction"], label_names=label_names,
                                                  augment_random_rotate=args["augment_random_rotate"],
                                                  is_training=True),
                               num_workers=24,
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
-    test_loader = DataLoader(DiffusionNetDataset(dataset_path, split_size, model_args["k_eig"],
+    test_loader = DataLoader(DiffusionNetDataset(test_root_dir, split_size, model_args["k_eig"],
                                                  filter_criteria=filter_criteria, op_cache_dir=op_cache_dir,
                                                  data_fraction=args["data_fraction_test"], label_names=label_names,
                                                  augment_random_rotate=args["augment_random_rotate"],

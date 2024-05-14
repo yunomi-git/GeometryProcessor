@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 
+
 class MeshDatasetFileManager:
     def __init__(self, root_dir):
         self.root_dir = root_dir
@@ -136,6 +137,7 @@ class MeshDatasetFileManager:
         ### Now return
         return clouds, targets, extra_labels
 
+
 # def test_load_numpy_pointclouds():
 #     data_root_dir = paths.HOME_PATH + "data_th5k_aug/"
 #     file_manager = MeshDatasetFileManager(data_root_dir)
@@ -183,17 +185,13 @@ def calculate_instance_target(mesh: trimesh.Trimesh, augmentations: dict):
         "bound_length": np.max(mesh_aux.bound_length),
         "is_manifold": mesh.is_watertight,
         "volume": mesh.volume,
-        # "overhang_violation": printability_metrics.get_overhang_printability(mesh_aux)[2],
-        # "stairstep_violation": printability_metrics.get_stairstep_printability(mesh_aux)[2],
-        # "thickness_violation": thickness_printability[2],
-        # "min_thickness": thickness_printability[3],
-        # "gap_violation": gap_printability[2],
-        # "min_gap": gap_printability[3],
     }
     instance_target.update(augmentations)
     return instance_target
 
-def save_base_mesh_and_target(mesh, mesh_file_manager: MeshDatasetFileManager, mesh_name, center=True, normalize_scale=True):
+
+def save_base_mesh_and_target(mesh, mesh_file_manager: MeshDatasetFileManager, mesh_name, center=True,
+                              normalize_scale=True):
     # Only take the largest body in a mesh
     if mesh.body_count > 1:
         splits = list(mesh.split(only_watertight=False))
@@ -218,7 +216,7 @@ def save_base_mesh_and_target(mesh, mesh_file_manager: MeshDatasetFileManager, m
     target_path_absolute = mesh_file_manager.get_target_path(absolute=True) + mesh_name + ".json"
     with open(target_path_absolute, 'w') as f:
         json.dump(target, f)
-        
+
     # Add the first instance
     augmentations = {
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0},
@@ -248,6 +246,7 @@ def normalize_mesh(mesh: trimesh.Trimesh, center, normalize_scale):
 
     mesh = trimesh_util.get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
     return mesh
+
 
 def save_labels_for_mesh(mesh: trimesh.Trimesh, target: dict, augmentations: dict):
     instance_target = calculate_instance_target(mesh, augmentations=augmentations)
@@ -280,17 +279,20 @@ def generate_base_dataset(data_root_dir, source_mesh_filenames, save_prefix, mes
         # mesh.apply_scale(mesh_scale)
         try:
             # mesh_info, mesh_to_save = calculate_mesh_info(mesh, save_relative_path=save_mesh_relative_path, orig_mesh_path=mesh_path)
-            save_base_mesh_and_target(mesh, mesh_file_manager=mesh_file_manager, mesh_name=base_name, center=center, normalize_scale=normalize_scale)
+            save_base_mesh_and_target(mesh, mesh_file_manager=mesh_file_manager, mesh_name=base_name, center=center,
+                                      normalize_scale=normalize_scale)
             i += 1
         except:
             continue
 
-def generate_augmentations_for_dataset(mesh_file_manager: MeshDatasetFileManager, augmentation_list, center=True, normalize_scale=True):
+
+def generate_augmentations_for_dataset(mesh_file_manager: MeshDatasetFileManager, augmentation_list, center=True,
+                                       normalize_scale=True):
     # Setup data path
     target_path_absolute_list = mesh_file_manager.get_target_files(absolute=True)
 
     for target_path in tqdm(target_path_absolute_list):
-        with open(target_path, "r")as f:
+        with open(target_path, "r") as f:
             target = json.load(f)
 
         mesh = mesh_file_manager.load_base_mesh_from_target(target_path_absolute=target_path)
@@ -302,6 +304,7 @@ def generate_augmentations_for_dataset(mesh_file_manager: MeshDatasetFileManager
 
         with open(target_path, 'w') as f:
             json.dump(target, f)
+
 
 def quick_edit(data_root_directory):
     mesh_file_manager = MeshDatasetFileManager(data_root_directory)
@@ -315,6 +318,7 @@ def quick_edit(data_root_directory):
         with open(file, 'w') as f:
             json.dump(target, f)
 
+
 def save_generated_dataset_as_numpy(file_manager,
                                     max_mesh_per_file,
                                     num_points_to_sample: int,
@@ -323,7 +327,8 @@ def save_generated_dataset_as_numpy(file_manager,
                                     center=True):
     num_points_to_sample = int(num_points_to_sample)
     max_mesh_per_file = int(max_mesh_per_file)
-    Path(mesh_file_manager.get_numpy_pointcloud_path(absolute=True, sampling_method=sampling_method)).mkdir(parents=True, exist_ok=True)
+    Path(mesh_file_manager.get_numpy_pointcloud_path(absolute=True, sampling_method=sampling_method)).mkdir(
+        parents=True, exist_ok=True)
     all_point_clouds = []
     all_label = []
     all_pp_label = []
@@ -365,8 +370,10 @@ def save_generated_dataset_as_numpy(file_manager,
 
             try:
                 mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-                vertices, normals, face_ids = mesh_aux.sample_and_get_normals(count=int(num_points_to_sample * 1.2), # Scaling is for thickness calculation failures
-                                                                          use_weight=sampling_method, return_face_ids=True)
+                vertices, normals, face_ids = mesh_aux.sample_and_get_normals(count=int(num_points_to_sample * 1.2),
+                                                                              # Scaling is for thickness calculation failures
+                                                                              use_weight=sampling_method,
+                                                                              return_face_ids=True)
                 _, thicknesses, num_hits = mesh_aux.calculate_thickness_at_points(points=vertices, normals=normals)
                 # _, curvature = mesh_aux.calculate_curvature_at_points(origins=vertices, face_ids=face_ids,
                 #                                                       curvature_method="defect")
@@ -393,7 +400,7 @@ def save_generated_dataset_as_numpy(file_manager,
             # per_point_label = normals
             # per_point_label = thicknesses[:, np.newaxis]
 
-            assert(len(vertices) == num_points_to_sample)
+            assert (len(vertices) == num_points_to_sample)
 
             ## Global label
             label = np.array([instance_data[label_name] for label_name in label_names])
@@ -421,9 +428,9 @@ def save_generated_dataset_as_numpy(file_manager,
             label_partition = all_label[i * max_mesh_per_file:]
             per_point_partition = all_pp_label[i * max_mesh_per_file:]
         else:
-            mesh_partition = all_point_clouds[i * max_mesh_per_file:(i+1) * max_mesh_per_file]
-            label_partition = all_label[i * max_mesh_per_file:(i+1) * max_mesh_per_file]
-            per_point_partition = all_pp_label[i * max_mesh_per_file:(i+1) * max_mesh_per_file]
+            mesh_partition = all_point_clouds[i * max_mesh_per_file:(i + 1) * max_mesh_per_file]
+            label_partition = all_label[i * max_mesh_per_file:(i + 1) * max_mesh_per_file]
+            per_point_partition = all_pp_label[i * max_mesh_per_file:(i + 1) * max_mesh_per_file]
 
         mesh_partition = np.stack(mesh_partition, axis=0).astype('float32')
         label_partition = np.stack(label_partition, axis=0).astype('float32')
@@ -455,17 +462,18 @@ def save_generated_dataset_as_numpy(file_manager,
     with open(save_path + "manifest.json", "w") as f:
         json.dump(stats, f)
 
+
 if __name__ == "__main__":
     # quick_edit(paths.HOME_PATH + "data_augmentations/")
     # Generation Parameters
     outputs_save_path = paths.DATA_PATH + "th5k_fx/"
 
-    mode = "convert_numpy" # generate_initial, add_augmentations, both, convert_numpy
+    mode = "convert_numpy"  # generate_initial, add_augmentations, both, convert_numpy
     normalize_center = True
     normalize_scale = True
 
     if mode == "generate_initial" or mode == "both":
-        use_dataset = "custom" # onshape, thingiverse, custom
+        use_dataset = "custom"  # onshape, thingiverse, custom
         source_mesh_filenames = []
         if use_dataset == "onshape":
             min_range = 0
@@ -508,7 +516,8 @@ if __name__ == "__main__":
             folders = os.listdir(file_path)
             # folders = ["chair", "bench", "table", "sofa", "stool"]
             num_folders = len(folders)
-            contents = paths.get_files_in_folders(base_folder=file_path, files_per_folder=max_range // num_folders, folders=folders, per_folder_subfolder="")
+            contents = paths.get_files_in_folders(base_folder=file_path, files_per_folder=max_range // num_folders,
+                                                  folders=folders, per_folder_subfolder="")
             contents = contents[min_range:max_range]
             source_mesh_filenames = [file_path + file_name for file_name in contents]
     if mode == "add_augmentations" or mode == "both":
@@ -542,14 +551,13 @@ if __name__ == "__main__":
     if mode == "convert_numpy":
         num_points_to_sample = 1e4
         max_mesh_per_file = 5.0e3
-        sampling_method="even"
+        sampling_method = "even"
     overwrite = False
 
     # Setup data path
     mesh_file_manager = MeshDatasetFileManager(root_dir=outputs_save_path)
     Path(mesh_file_manager.get_mesh_path(absolute=True)).mkdir(parents=True, exist_ok=True)
     Path(mesh_file_manager.get_target_path(absolute=True)).mkdir(parents=True, exist_ok=True)
-
 
     if mode == "generate_initial" or mode == "both":
         generate_base_dataset(data_root_dir=outputs_save_path,

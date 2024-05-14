@@ -1,6 +1,6 @@
 import torch
 
-from CalculateNormalsPlaygraound import get_threshold_penalty
+from Generation.Thresholds import get_threshold_penalty
 import matplotlib.pyplot as plt
 import numpy as np
 

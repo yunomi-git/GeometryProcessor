@@ -40,12 +40,14 @@ def translate_pointcloud(pointcloud):
     # xyz1 = np.random.uniform(low=2. / 3., high=3. / 2., size=[3])
     # xyz2 = np.random.uniform(low=-0.2, high=0.2, size=[3])
 
-    xyz_mult = np.ones(pointcloud.shape[1])
-    xyz_mult[:3] = np.random.uniform(low=2. / 3., high=3. / 2., size=[3])
+    # xyz_mult = np.ones(pointcloud.shape[1])
+    # xyz_mult[:3] = np.random.uniform(low=2. / 3., high=3. / 2., size=[3])
     xyz_add = np.zeros(pointcloud.shape[1])
     xyz_add[:3] = np.random.uniform(low=-0.2, high=0.2, size=[3])
 
-    translated_pointcloud = np.add(np.multiply(pointcloud, xyz_mult), xyz_add).astype('float32')
+    # translated_pointcloud = np.add(np.multiply(pointcloud, xyz_mult), xyz_add).astype('float32')
+    translated_pointcloud = np.add(pointcloud, xyz_add).astype('float32')
+
     return translated_pointcloud
 
 
@@ -74,10 +76,10 @@ class PointCloudDataset(Dataset):
 
         if remove_outlier_ratio > 0.0:
             if outputs_at == "global":
-                keep_indices = non_outlier_indices(self.label, num_bins=10,
+                keep_indices = non_outlier_indices(self.label, num_bins=15,
                                                    threshold_ratio_to_remove=remove_outlier_ratio)
             else: # vertices
-                keep_indices = non_outlier_indices_vertices_nclass(self.label, num_bins=10,
+                keep_indices = non_outlier_indices_vertices_nclass(self.label, num_bins=15,
                                                                    threshold_ratio_to_remove=remove_outlier_ratio)
             original_length = len(self.label)
             self.point_clouds = self.point_clouds[keep_indices]
@@ -104,7 +106,7 @@ class PointCloudDataset(Dataset):
         # Grab random num_points from the point cloud
         if self.partition == 'train':
             p = np.random.permutation(len(pointcloud))[:self.num_points]
-            pointcloud = translate_pointcloud(pointcloud)
+            # pointcloud = translate_pointcloud(pointcloud)
         else:
             p = np.arange(self.num_points)
 

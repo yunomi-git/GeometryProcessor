@@ -72,7 +72,7 @@ class DiffusionNetDataset(Dataset):
                 mesh = get_augmented_mesh(mesh, instance_data)
                 mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
                 verts = torch.tensor(mesh_aux.vertices).float()
-                faces = torch.tensor(mesh_aux.facets)
+                faces = torch.tensor(mesh_aux.faces)
 
                 # Attempt to get eigen decomposition. If cannot, skip
                 try:

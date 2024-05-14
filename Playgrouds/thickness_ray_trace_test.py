@@ -11,17 +11,17 @@ def calculate_and_show_thickness(mesh):
     trimesh.repair.fix_normals(mesh, multibody=True)
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
 
-    num_facets = mesh_aux.num_facets
+    num_facets = mesh_aux.num_faces
 
     is_thin_vector = np.empty(num_facets)
-    facet_offset = -mesh_aux.facet_normals * 0.001
-    hits = mesh.ray.intersects_location(ray_origins=mesh_aux.facet_centroids + facet_offset,
-                                        ray_directions=-mesh_aux.facet_normals,
+    facet_offset = -mesh_aux.face_normals * 0.001
+    hits = mesh.ray.intersects_location(ray_origins=mesh_aux.face_centroids + facet_offset,
+                                        ray_directions=-mesh_aux.face_normals,
                                         multiple_hits=False)[0]
 
     if len(hits) != num_facets:
         return
-    distances = np.linalg.norm(hits - mesh_aux.facet_centroids, axis=1)
+    distances = np.linalg.norm(hits - mesh_aux.face_centroids, axis=1)
     wall_thicknesses = distances
 
     # Now normalize

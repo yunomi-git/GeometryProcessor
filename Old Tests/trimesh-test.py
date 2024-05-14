@@ -25,7 +25,7 @@ if __name__=="__main__":
 
     # facets are groups of coplanar adjacent faces
     # colors are 8 bit RGBA by default (n, 4) np.uint8
-    for facet in mesh.facets:
+    for facet in mesh.faces:
         mesh.visual.face_colors[facet] = trimesh.visual.random_color()
 
     # preview mesh in an opengl window if you installed pyglet and scipy with pip
