@@ -27,7 +27,13 @@ def get_files_multifolder(base_folder, files_per_folder):
         files.extend(contents[:max_files])
     return files
 
+
+def get_files_in_directory(base_folder, max_files_per_subfolder, absolute=True):
+    pass
+
 def get_files_in_folders(base_folder, folders=None, files_per_folder=10000, per_folder_subfolder=""):
+    # Grabs files within a given folder
+    # Assumes the folder structure is base_folder > [folders] > per_folder_subfolder > file
     files = []
     if folders is None:
         folders = os.listdir(base_folder)

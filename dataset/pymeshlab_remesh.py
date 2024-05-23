@@ -7,6 +7,7 @@ import trimesh_util
 import numpy as np
 import os
 from pathlib import Path
+import FolderManager
 
 time = util.Stopwatch()
 
@@ -116,15 +117,15 @@ def default_remesh(file_path, out_path, show=False):
 
 
 if __name__=="__main__":
-    original_path = paths.HOME_PATH + "../Datasets/" + "Dataset_Thingiverse_10k/"
-    new_path = paths.HOME_PATH + "../Datasets/" + "Dataset_Thingiverse_10k_Remesh4/"
+    original_path = paths.HOME_PATH + "../Datasets/" + "Thingi10k_Normalized/"
+    new_path = paths.HOME_PATH + "../Datasets/" + "Thingi10k_Remesh_Normalized/"
     Path(new_path).mkdir(exist_ok=True)
 
     file_names = os.listdir(original_path)
     file_names.sort()
     original_extension = file_names[0][file_names[0].find("."):]
     file_names = [file_name[:file_name.find(".")] for file_name in file_names]
-    start_from = 4810
+    start_from = 0
     for file_name in tqdm(file_names[start_from:]):
         try:
             mesh = trimesh.load(original_path + file_name + original_extension)

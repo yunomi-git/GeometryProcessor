@@ -64,6 +64,11 @@ def get_indices_of_conditional(conditional_array):
     indices = np.arange(0, size)
     return indices[conditional_array]
 
+def get_indices_a_in_b(a, b):
+    b_indices = []
+    for a_value in a:
+        b_indices.append(b.index(a_value))
+    return b_indices
 
 class DictionaryList:
     # Elements of each dictionary as a list

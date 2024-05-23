@@ -328,7 +328,7 @@ def get_valid_submeshes(mesh: trimesh.Trimesh):
             valid_meshes.append(submesh)
     return valid_meshes
 
-def normalize_mesh(mesh: trimesh.Trimesh, center, normalize_scale):
+def normalize_mesh(mesh: trimesh.Trimesh, center, normalize_scale) -> trimesh.Trimesh:
     mesh_aux = MeshAuxilliaryInfo(mesh)
     normalization_scale = 1.0
     normalization_translation = np.array([0, 0, 0])
