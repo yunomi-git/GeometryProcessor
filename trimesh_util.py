@@ -166,17 +166,14 @@ class MeshAuxilliaryInfo:
         else:
             return hit_origins, wall_thicknesses
 
-    def calculate_gap_samples(self, count=50000, return_num_samples=False):
-        trimesh.repair.fix_normals(self.mesh, multibody=True)
-        origins, normals = self.sample_and_get_normals(count)
-
+    def calculate_gaps_at_points(self, points, normals, return_num_samples=True):
         min_bound = min(self.bound_length)
         normal_scale = 5e-2 * min_bound
         facet_offset = normals * normal_scale  # 0.1 prev
-        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=origins + facet_offset,
+        hits, ray_ids, tri_ids = self.mesh.ray.intersects_location(ray_origins=points + facet_offset,
                                                                    ray_directions=normals,
                                                                    multiple_hits=False)
-        hit_origins = origins[ray_ids]
+        hit_origins = points[ray_ids]
         distances = np.linalg.norm(hits - hit_origins, axis=1)
         gap_sizes = distances
 
@@ -184,6 +181,12 @@ class MeshAuxilliaryInfo:
             return hit_origins, gap_sizes, len(tri_ids)
         else:
             return hit_origins, gap_sizes
+
+    def calculate_gap_samples(self, count=50000, return_num_samples=False):
+        trimesh.repair.fix_normals(self.mesh, multibody=True)
+        origins, normals = self.sample_and_get_normals(count)
+
+        return self.calculate_gaps_at_points(points=origins, normals=normals, return_num_samples=return_num_samples)
 
     def calculate_curvature_samples(self, curvature_method="defect", count=50000, return_num_samples=False, sampling_method="even"):
         ## Methods: gaussian, mean, face
