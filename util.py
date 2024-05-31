@@ -70,6 +70,18 @@ def get_indices_a_in_b(a, b):
         b_indices.append(b.index(a_value))
     return b_indices
 
+def get_permutation_for_list(list, n):
+    assert n < len(list)
+    indices = np.arange(n)
+    return np.random.permutation(indices)
+
+def get_random_n_in_list(list, n):
+    assert n < len(list)
+    indices = np.arange(n)
+    permutation = np.random.permutation(indices)
+    return list[permutation]
+
+
 class DictionaryList:
     # Elements of each dictionary as a list
     def __init__(self):

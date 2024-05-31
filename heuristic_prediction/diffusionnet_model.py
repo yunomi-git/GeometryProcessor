@@ -1,9 +1,12 @@
+import util
 from dataset.process_and_save import MeshDatasetFileManager, get_augmented_mesh
 from torch.utils.data import Dataset
 import diffusion_net
 from tqdm import tqdm
 import numpy as np
 import torch.nn as nn
+from dataset.process_and_save_temp import DatasetManager, Augmentation
+from typing import List
 import json
 import math
 import trimesh
@@ -12,36 +15,88 @@ import trimesh_util
 
 from diffusion_net.layers import DiffusionNet
 
-
-# class DiffusionNetData:
-#     def __init__(self, verts, faces, frames, mass, L, evals, evecs, gradX, gradY):
-#         self.verts = verts
-#         self.faces = faces
-#         self.frames = frames
-#         self.mass = mass
-#         self.L = L
-#         self.evals = evals
-#         self.evecs = evecs
-#         self.gradX = gradX
-#         self.gradY = gradY
-#
-#     def to(self, device):
-#         self.verts = self.verts.to(device)
-#         self.faces = self.faces.to(device)
-#         self.frames = self.frames.to(device)
-#         self.mass = self.mass.to(device)
-#         self.L = self.L.to(device)
-#         self.evals = self.evals.to(device)
-#         self.evecs = self.evecs.to(device)
-#         self.gradX = self.gradX.to(device)
-#         self.gradY = self.gradY.to(device)
-
 class DiffusionNetDataset(Dataset):
-    def __init__(self, data_root_dir, split_size, k_eig, filter_criteria=None,
-                 op_cache_dir=None, data_fraction=1.0, label_names=None, augment_random_rotate=True, is_training=True):
-        self.file_manager = MeshDatasetFileManager(data_root_dir)
+    def __init__(self, data_root_dir, split_size, k_eig, outputs_at, augmentations: str | List[Augmentation] = "none",
+                 op_cache_dir=None, data_fraction=1.0, label_names=None,
+                 extra_vertex_label_names=None, extra_global_label_names=None,
+                 augment_random_rotate=True, is_training=True):
         self.root_dir = data_root_dir
         self.split_size = split_size  # pass None to take all entries (except those in exclude_dict)
+        self.k_eig = k_eig
+        self.k_eig_list = []
+        self.op_cache_dir = op_cache_dir
+        self.outputs_at = outputs_at
+
+        self.entries = {}
+
+        self.augmentations = augmentations
+
+        self.augment_random_rotate = augment_random_rotate
+        self.is_training = is_training
+
+        file_manager = DatasetManager(data_root_dir)
+
+        self.all_faces = []
+        self.all_vertices = []
+        self.all_labels = []
+        label_names = label_names
+
+        # Open the base directory and get the contents
+        mesh_folders = file_manager.get_mesh_folders()
+        num_files = len(mesh_folders)
+        num_file_to_use = int(data_fraction * num_files)
+        # mesh_folders = mesh_folders[util.get_permutation_for_list(mesh_folders, num_file_to_use)]
+
+        # Now parse through all the files
+        for mesh_folder in tqdm(mesh_folders):
+            # TODO load default aug if desired
+            if augmentations == "default":
+                mesh_labels = [mesh_folder.load_default_mesh()]
+            elif augmentations == "all":
+                mesh_labels = mesh_folder.load_all_augmentations()
+            else:
+                mesh_labels = mesh_folder.load_specific_augmentations_if_available(self.augmentations)
+
+            for mesh_label in mesh_labels:
+                mesh_data = mesh_label.convert_to_data(self.outputs_at, label_names,
+                                                       extra_vertex_label_names=extra_vertex_label_names,
+                                                       extra_global_label_names=extra_global_label_names)
+                verts = mesh_data.vertices
+                aug_verts = mesh_data.augmented_vertices
+                label = mesh_data.labels
+                faces = mesh_data.faces
+
+                # Attempt to get eigen decomposition. If cannot, skip
+                try:
+                    diffusion_net.geometry.get_operators(verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
+                except:  # Or valueerror or ArpackError
+                    continue
+
+                self.all_faces.append(faces)
+                self.all_vertices.append(aug_verts)
+                self.all_labels.append(label)
+
+    def __len__(self):
+        return len(self.all_labels)
+
+    def __getitem__(self, idx):
+        verts = self.all_vertices[idx]
+        faces = self.all_faces[idx]
+        label = self.all_labels[idx] # TODO convert to float here?
+
+        # TODO data gets permuted after batch
+        # Randomly rotate positions
+        if self.augment_random_rotate and self.is_training:
+            verts = diffusion_net.utils.random_rotate_points(verts)
+
+        return verts, faces, label
+
+class DiffusionNetDataset2(Dataset):
+    def __init__(self, data_root_dir, k_eig, filter_criteria=None,
+                 op_cache_dir=None, data_fraction=1.0, label_names=None,
+                 augment_random_rotate=True, is_training=True):
+        self.root_dir = data_root_dir
+        # self.split_size = split_size  # pass None to take all entries (except those in exclude_dict)
         self.k_eig = k_eig
         self.k_eig_list = []
         self.op_cache_dir = op_cache_dir
@@ -78,23 +133,17 @@ class DiffusionNetDataset(Dataset):
 
                 # Attempt to get eigen decomposition. If cannot, skip
                 try:
-                    # diffusion_net.geometry.get_operators(verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
-                    frames, mass, L, evals, evecs, gradX, gradY = diffusion_net.geometry.get_operators(verts, faces,
-                                                                                                       k_eig=self.k_eig,
-                                                                                                       op_cache_dir=self.op_cache_dir)
-                    # mesh_data = DiffusionNetData(verts=verts, faces=faces, frames=frames,
-                    #                              mass=mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY)
+                    diffusion_net.geometry.get_operators(verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
+                    # frames, mass, L, evals, evecs, gradX, gradY = diffusion_net.geometry.get_operators(verts, faces,
+                    #                                                                                    k_eig=self.k_eig,
+                    #                                                                                    op_cache_dir=self.op_cache_dir)
                 except:  # Or valueerror or ArpackError
                     continue
 
                 label = np.array([instance_data[label_name] for label_name in label_names])
 
-                # center and unit scale
-                # verts = diffusion_net.geometry.normalize_positions(verts)
-
                 self.all_faces.append(faces)
                 self.all_vertices.append(verts)
-                # self.all_meshes.append(mesh_data)
                 self.all_labels.append(label)
 
     def __len__(self):

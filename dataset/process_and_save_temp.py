@@ -11,7 +11,11 @@ import FolderManager
 from tqdm import tqdm
 
 def get_submesh_index(mesh_name):
-    postscript = mesh_name[mesh_name.find("_") + 1:] # TODO this may not be the final one
+    index = mesh_name.find("_")
+    if index == -1:
+        return 0
+    postscript = mesh_name[index + 1:] # TODO this may not be the final one
+
     return int(postscript)
 
 class Augmentation:
@@ -34,7 +38,10 @@ class Augmentation:
                 simplify_number(self.scale[1]) + "_" +
                 simplify_number(self.scale[2]))
 
-class MeshLabels:
+
+DEFAULT_AUGMENTATION = Augmentation(scale=np.array([1.0, 1.0, 1.0]), rotation=np.array([0.0, 0.0, 0.0]))
+
+class MeshRawLabels:
     def __init__(self, vertices, faces, vertex_labels, global_labels, vertex_label_names, global_label_names):
         self.vertices = vertices
         self.faces = faces
@@ -65,12 +72,12 @@ class MeshLabels:
             labels = self.get_vertex_labels(label_names)
         else:
             labels = self.get_global_labels(label_names)
-        return MeshData(vertices=vertices, augmented_vertices=augmented_vertices, faces=self.faces, labels=labels)
+        return MeshReadyData(vertices=vertices, augmented_vertices=augmented_vertices, faces=self.faces, labels=labels)
         # return vertices, self.faces, augmented_vertices, labels
 
 
 
-def calculate_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshLabels:
+def calculate_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshRawLabels:
     if augmentation is not None:
         mesh = trimesh_util.get_transformed_mesh_trs(mesh,
                                                      scale=augmentation.scale,
@@ -126,9 +133,9 @@ def calculate_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshLabels:
     vertex_labels = np.stack(vertex_labels)
     global_labels = np.array([global_labels])
 
-    return MeshLabels(vertices=vertices, faces=faces, vertex_labels=vertex_labels,
-                      global_labels=global_labels, vertex_label_names=vertex_label_names,
-                      global_label_names=global_label_names)
+    return MeshRawLabels(vertices=vertices, faces=faces, vertex_labels=vertex_labels,
+                         global_labels=global_labels, vertex_label_names=vertex_label_names,
+                         global_label_names=global_label_names)
 
 class MeshFolder:
     def __init__(self, dataset_path, mesh_name):
@@ -182,11 +189,16 @@ class MeshFolder:
 
     def augmentation_is_cached(self, augmentation: Augmentation):
         directory_manager = FolderManager.DirectoryPathManager(base_path=self.mesh_dir_path, base_unit_is_file=False)
-        directories = directory_manager.get_file_names(extension=False)
-        return augmentation.as_string() in directories
+        available_augmentations = directory_manager.get_file_names(extension=False)
+        return augmentation.as_string() in available_augmentations
 
-    def load_mesh_with_augmentation(self, augmentation: Augmentation):
-        aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
+    def load_mesh_with_augmentation(self, augmentation: Augmentation=None, augmentation_string: str=None):
+        assert not (augmentation_string is None and augmentation is None)
+
+        if augmentation is not None:
+            aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
+        else:
+            aug_path = self.mesh_dir_path + augmentation_string + "/"
         with open(aug_path + "/" + "manifest.json", 'r') as f:
             manifest = json.load(f)
         vertex_label_names = manifest["vertex_label_names"]
@@ -196,11 +208,27 @@ class MeshFolder:
         vertex_labels = np.load(aug_path + "vertex_labels.npy")
         global_labels = np.load(aug_path + "global_labels.npy")
 
-        return MeshLabels(vertices=vertices, faces=faces, vertex_labels=vertex_labels,
-                          global_labels=global_labels, vertex_label_names=vertex_label_names,
-                          global_label_names=global_label_names)
+        return MeshRawLabels(vertices=vertices, faces=faces, vertex_labels=vertex_labels,
+                             global_labels=global_labels, vertex_label_names=vertex_label_names,
+                             global_label_names=global_label_names)
 
-class MeshData:
+    def load_default_mesh(self):
+        return self.load_mesh_with_augmentation(DEFAULT_AUGMENTATION)
+
+    def load_all_augmentations(self):
+        directory_manager = FolderManager.DirectoryPathManager(base_path=self.mesh_dir_path, base_unit_is_file=False)
+        available_augmentations = directory_manager.get_file_names(extension=False)
+        return self.load_specific_augmentations_if_available(available_augmentations)
+        # TODO This takes filenames not actual augmentations
+
+    def load_specific_augmentations_if_available(self, augmentations: List[Augmentation]):
+        mesh_labels = []
+        for augmentation in augmentations:
+            mesh_labels.append(self.load_mesh_with_augmentation(augmentation))
+        return mesh_labels
+
+
+class MeshReadyData:
     # This is the data that gets loaded
     def __init__(self, vertices, faces, augmented_vertices, labels):
         self.vertices = vertices
@@ -229,6 +257,8 @@ class DatasetManager:
         self.mesh_folders = os.listdir(self.dataset_path)
         self.mesh_folders.sort()
 
+    def get_mesh_folders(self) -> List[MeshFolder]:
+        pass
 
     def get_meshes(self, num_meshes, augmentations: List[Augmentation]):
         # grab num_meshes random meshes
@@ -247,14 +277,15 @@ class DatasetManager:
 
 
 if __name__=="__main__":
-    base_folder = paths.DATASETS_PATH + "Thingi10k_Ready/train/"
-    desired_path = paths.DATA_PATH + "th10k_norm/train/"
+    base_folder = paths.DATASETS_PATH + "UnitTest/train/"
+    desired_path = paths.DATA_PATH + "unit_test/train/"
+    # desired_path = os.path.join(paths.DATA_PATH)
 
-    generate_intial_folders = False
+    generate_intial_folders = True
     max_submesh_index = 4
 
     if generate_intial_folders:
-        start_from = 17950
+        start_from = 0
         # First generate initial folders and add initial pose
         Path(desired_path).mkdir(parents=True, exist_ok=True)
 
