@@ -13,7 +13,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 class RegressionTools:
-    def __init__(self, args, label_names, train_loader, test_loader, model, opt, scheduler=None, clip_parameters=False):
+    def __init__(self, args, label_names, train_loader, test_loader, model, opt, scheduler=None, clip_parameters=False,
+                 include_faces=False):
         self.device = torch.device("cuda")
         # self.seed_all(args["seed"])
 
@@ -30,6 +31,8 @@ class RegressionTools:
 
         self.clip_parameters = clip_parameters
         self.clip_threshold = 1
+
+        self.include_faces = include_faces
 
         cudnn.benchmark = True
 
@@ -56,7 +59,84 @@ class RegressionTools:
         io = IOStream(self.checkpoint_path + 'run.log')
         return io
 
+    def get_training_evaluations_pointcloud(self, training=True):
+        train_loss = 0.0
+        count = 0.0
+        self.model.train()
+        self.opt.zero_grad()
+        train_pred = []
+        train_true = []
+        for batch_idx, (data, label, weight) in enumerate(tqdm(self.train_loader)):
+            data, label = data.to(self.device), label.to(self.device)
+            weight = weight.to(self.device)
+            weight = torch.sqrt(weight)
 
+            preds = self.model(data)
+            if training:
+                loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
+                loss.backward()
+
+                if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
+                    if self.clip_parameters:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
+                    self.opt.step()
+                    self.opt.zero_grad()
+            else:
+                loss = self.loss_criterion(weight * preds, weight * label)
+                loss.backward()
+
+                if self.clip_parameters:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
+                self.opt.step()
+                self.opt.zero_grad()
+
+            batch_size = data.size()[0]
+            count += batch_size
+            train_loss += loss.item() * batch_size
+            train_true.append(label.cpu().numpy())
+            train_pred.append(preds.detach().cpu().numpy())
+
+        return train_loss, count, train_pred, train_true
+
+    def get_training_evaluations_mesh(self, training=True):
+        train_loss = 0.0
+        count = 0.0
+        self.model.train()
+        self.opt.zero_grad()
+        train_pred = []
+        train_true = []
+        for batch_idx, (vertices, faces, label) in enumerate(tqdm(self.train_loader)):
+            vertices, faces, label = vertices.to(self.device), faces.to(self.device), label.to(self.device)
+            # weight = weight.to(self.device)
+            # weight = torch.sqrt(weight)
+            weight = 1
+
+            preds = self.model(vertices, faces)
+            if training:
+                loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
+                loss.backward()
+
+                if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
+                    if self.clip_parameters:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
+                    self.opt.step()
+                    self.opt.zero_grad()
+            else:
+                loss = self.loss_criterion(weight * preds, weight * label)
+                loss.backward()
+
+                if self.clip_parameters:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
+                self.opt.step()
+                self.opt.zero_grad()
+
+            batch_size = vertices.size()[0]
+            count += batch_size
+            train_loss += loss.item() * batch_size
+            train_true.append(label.cpu().numpy())
+            train_pred.append(preds.detach().cpu().numpy())
+
+        return train_loss, count, train_pred, train_true
 
     def train(self, args, do_test=True, plot_every_n_epoch=-1, outputs_at="global"):
         best_res_mag = 0
@@ -68,33 +148,37 @@ class RegressionTools:
             ####################
             # Train
             ####################
-            train_loss = 0.0
-            count = 0.0
+            # train_loss = 0.0
+            # count = 0.0
             self.model.train()
             self.opt.zero_grad()
-            train_pred = []
-            train_true = []
+            # train_pred = []
+            # train_true = []
             with torch.enable_grad():
-                for batch_idx, (data, label, weight) in enumerate(tqdm(self.train_loader)):
-                    data, label = data.to(self.device), label.to(self.device)
-                    weight = weight.to(self.device)
-                    weight = torch.sqrt(weight)
-
-                    preds = self.model(data)
-                    loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
-                    loss.backward()
-
-                    if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
-                        if self.clip_parameters:
-                            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
-                        self.opt.step()
-                        self.opt.zero_grad()
-
-                    batch_size = data.size()[0]
-                    count += batch_size
-                    train_loss += loss.item() * batch_size
-                    train_true.append(label.cpu().numpy())
-                    train_pred.append(preds.detach().cpu().numpy())
+                # for batch_idx, (data, label, weight) in enumerate(tqdm(self.train_loader)):
+                #     data, label = data.to(self.device), label.to(self.device)
+                #     weight = weight.to(self.device)
+                #     weight = torch.sqrt(weight)
+                #
+                #     preds = self.model(data)
+                #     loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
+                #     loss.backward()
+                #
+                #     if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
+                #         if self.clip_parameters:
+                #             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
+                #         self.opt.step()
+                #         self.opt.zero_grad()
+                #
+                #     batch_size = data.size()[0]
+                #     count += batch_size
+                #     train_loss += loss.item() * batch_size
+                #     train_true.append(label.cpu().numpy())
+                #     train_pred.append(preds.detach().cpu().numpy())
+                if not self.include_faces:
+                    train_loss, count, train_pred, train_true = self.get_training_evaluations_pointcloud(training=True)
+                else:
+                    train_loss, count, train_pred, train_true = self.get_training_evaluations_mesh(training=True)
 
             if self.scheduler is not None:
                 if self.args["scheduler"] == "plateau":
@@ -173,25 +257,30 @@ class RegressionTools:
             # Test
             ####################
             if do_test:
-                test_loss = 0.0
-                count = 0.0
+                # test_loss = 0.0
+                # count = 0.0
                 self.model.eval()
-                test_pred = []
-                test_true = []
+                # test_pred = []
+                # test_true = []
                 with torch.no_grad():
-                    for data, label, weight in tqdm(self.test_loader):
-                        data, label = data.to(self.device), label.to(self.device)
-                        weight = weight.to(self.device)
-                        weight = torch.sqrt(weight)
-                        # data = data.permute(0, 2, 1)
-                        preds = self.model(data)
-                        loss = self.loss_criterion(weight * preds, weight * label)
-
-                        batch_size = data.size()[0]
-                        count += batch_size
-                        test_loss += loss.item() * batch_size
-                        test_true.append(label.cpu().numpy())
-                        test_pred.append(preds.detach().cpu().numpy())
+                    if not self.include_faces:
+                        test_loss, count, test_pred, test_true = self.get_training_evaluations_pointcloud(
+                            training=False)
+                    else:
+                        test_loss, count, test_pred, test_true = self.get_training_evaluations_mesh(training=False)
+                    # for data, label, weight in tqdm(self.test_loader):
+                    #     data, label = data.to(self.device), label.to(self.device)
+                    #     weight = weight.to(self.device)
+                    #     weight = torch.sqrt(weight)
+                    #     # data = data.permute(0, 2, 1)
+                    #     preds = self.model(data)
+                    #     loss = self.loss_criterion(weight * preds, weight * label)
+                    #
+                    #     batch_size = data.size()[0]
+                    #     count += batch_size
+                    #     test_loss += loss.item() * batch_size
+                    #     test_true.append(label.cpu().numpy())
+                    #     test_pred.append(preds.detach().cpu().numpy())
 
                 test_true = np.concatenate(test_true)
                 test_pred = np.concatenate(test_pred)

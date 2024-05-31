@@ -13,28 +13,28 @@ import trimesh_util
 from diffusion_net.layers import DiffusionNet
 
 
-class DiffusionNetData:
-    def __init__(self, verts, faces, frames, mass, L, evals, evecs, gradX, gradY):
-        self.verts = verts
-        self.faces = faces
-        self.frames = frames
-        self.mass = mass
-        self.L = L
-        self.evals = evals
-        self.evecs = evecs
-        self.gradX = gradX
-        self.gradY = gradY
-
-    def to(self, device):
-        self.verts = self.verts.to(device)
-        self.faces = self.faces.to(device)
-        self.frames = self.frames.to(device)
-        self.mass = self.mass.to(device)
-        self.L = self.L.to(device)
-        self.evals = self.evals.to(device)
-        self.evecs = self.evecs.to(device)
-        self.gradX = self.gradX.to(device)
-        self.gradY = self.gradY.to(device)
+# class DiffusionNetData:
+#     def __init__(self, verts, faces, frames, mass, L, evals, evecs, gradX, gradY):
+#         self.verts = verts
+#         self.faces = faces
+#         self.frames = frames
+#         self.mass = mass
+#         self.L = L
+#         self.evals = evals
+#         self.evecs = evecs
+#         self.gradX = gradX
+#         self.gradY = gradY
+#
+#     def to(self, device):
+#         self.verts = self.verts.to(device)
+#         self.faces = self.faces.to(device)
+#         self.frames = self.frames.to(device)
+#         self.mass = self.mass.to(device)
+#         self.L = self.L.to(device)
+#         self.evals = self.evals.to(device)
+#         self.evecs = self.evecs.to(device)
+#         self.gradX = self.gradX.to(device)
+#         self.gradY = self.gradY.to(device)
 
 class DiffusionNetDataset(Dataset):
     def __init__(self, data_root_dir, split_size, k_eig, filter_criteria=None,
@@ -52,7 +52,9 @@ class DiffusionNetDataset(Dataset):
         self.is_training = is_training
 
         file_manager = MeshDatasetFileManager(data_root_dir)
-        self.all_meshes = []
+        # self.all_meshes = []
+        self.all_faces = []
+        self.all_vertices = []
         self.all_labels = []
         label_names = label_names
 
@@ -80,8 +82,8 @@ class DiffusionNetDataset(Dataset):
                     frames, mass, L, evals, evecs, gradX, gradY = diffusion_net.geometry.get_operators(verts, faces,
                                                                                                        k_eig=self.k_eig,
                                                                                                        op_cache_dir=self.op_cache_dir)
-                    mesh_data = DiffusionNetData(verts=verts, faces=faces, frames=frames,
-                                                 mass=mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY)
+                    # mesh_data = DiffusionNetData(verts=verts, faces=faces, frames=frames,
+                    #                              mass=mass, L=L, evals=evals, evecs=evecs, gradX=gradX, gradY=gradY)
                 except:  # Or valueerror or ArpackError
                     continue
 
@@ -90,14 +92,18 @@ class DiffusionNetDataset(Dataset):
                 # center and unit scale
                 # verts = diffusion_net.geometry.normalize_positions(verts)
 
-                self.all_meshes.append(mesh_data)
+                self.all_faces.append(faces)
+                self.all_vertices.append(verts)
+                # self.all_meshes.append(mesh_data)
                 self.all_labels.append(label)
 
     def __len__(self):
         return len(self.all_labels)
 
     def __getitem__(self, idx):
-        mesh_data = self.all_meshes[idx]
+        # mesh_data = self.all_meshes[idx]
+        verts = self.all_vertices[idx]
+        faces = self.all_faces[idx]
         label = self.all_labels[idx] # TODO convert to float here?
 
         # Already occuring
@@ -106,16 +112,28 @@ class DiffusionNetDataset(Dataset):
         # TODO data gets permuted after batch
         # Randomly rotate positions
         if self.augment_random_rotate and self.is_training:
-            mesh_data.verts = diffusion_net.utils.random_rotate_points(mesh_data.verts)
+            verts = diffusion_net.utils.random_rotate_points(verts)
 
-        return mesh_data, label
+        return verts, faces, label
 
 class DiffusionNetWrapper(nn.Module):
-    def __init__(self, input_feature_type, num_outputs, C_width=128, N_block=4, last_activation=None,
-                 outputs_at='vertices', mlp_hidden_dims=None, dropout=True, with_gradient_features=True,
-                 with_gradient_rotations=True, diffusion_method='spectral'):
+    def __init__(self, model_args, op_cache_dir):
         super(DiffusionNetWrapper, self).__init__()
+
+        input_feature_type = model_args["input_feature_type"]
+        num_outputs = model_args["num_outputs"]
+        C_width = model_args["C_width"]
+        N_block = model_args["N_block"]
+        last_activation = model_args["last_activation"]
+        outputs_at = model_args["outputs_at"]
+        mlp_hidden_dims = model_args["mlp_hidden_dims"]
+        dropout = model_args["dropout"]
+        with_gradient_features = model_args["with_gradient_features"]
+        with_gradient_rotations = model_args["with_gradient_rotations"]
+        diffusion_method = model_args["diffusion_method"]
+
         self.input_feature_type = input_feature_type
+        self.op_cache_dir = op_cache_dir
         C_in = {'xyz': 3, 'hks': 16}[self.input_feature_type]
 
         self.wrapped_model = DiffusionNet(C_in=C_in, C_out=num_outputs, C_width=C_width, N_block=N_block,
@@ -125,12 +143,16 @@ class DiffusionNetWrapper(nn.Module):
                                           with_gradient_rotations=with_gradient_rotations,
                                           diffusion_method=diffusion_method)
 
-    def forward(self, x: DiffusionNetData):
+    def forward(self, verts, faces):
+        # Calculate properties
+        frames, mass, L, evals, evecs, gradX, gradY = diffusion_net.geometry.get_operators(verts, faces,
+                                                                                           k_eig=self.k_eig,
+                                                                                           op_cache_dir=self.op_cache_dir)
         # Construct features
         if self.input_feature_type == 'xyz':
-            features = x.verts
+            features = verts
         else:  # self.input_feature_type == 'hks':
-            features = diffusion_net.geometry.compute_hks_autoscale(x.evals, x.evecs, 16)  # TODO autoscale here
+            features = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 16)  # TODO autoscale here
 
-        return self.wrapped_model.forward(features, x.mass, L=x.L, evals=x.evals, evecs=x.evecs, gradX=x.gradX,
-                                          gradY=x.gradY, faces=x.faces)
+        return self.wrapped_model.forward(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX,
+                                          gradY=gradY, faces=faces)

@@ -124,7 +124,8 @@ if __name__ == "__main__":
         model=model,
         opt=opt,
         scheduler=scheduler,
-        clip_parameters=True
+        clip_parameters=True,
+        include_faces=False
     )
 
     regression_manager.train(args, do_test=args["do_test"], plot_every_n_epoch=5, outputs_at=args["outputs_at"])

@@ -1,3 +1,4 @@
+import paths
 import trimesh_util
 import trimesh
 import numpy as np
@@ -5,9 +6,33 @@ from pathlib import Path
 import json
 from typing import List
 import os
+import shutil
+import FolderManager
+from tqdm import tqdm
+
+def get_submesh_index(mesh_name):
+    postscript = mesh_name[mesh_name.find("_") + 1:] # TODO this may not be the final one
+    return int(postscript)
 
 class Augmentation:
-    pass
+    def __init__(self, rotation: np.ndarray, scale: np.ndarray):
+        self.rotation = rotation
+        self.scale = scale
+
+    def as_json(self):
+        return {
+            "orientation": {"x": self.rotation[0], "y": self.rotation[1], "z": self.rotation[2]},
+            "scale": {"x": self.scale[0], "y": self.scale[1], "z": self.scale[2]}
+        }
+
+    def as_string(self):
+        simplify_number = lambda x: str(int(x * 100))
+        return ("r" + simplify_number(self.rotation[0]) + "_" +
+                simplify_number(self.rotation[1]) + "_" +
+                simplify_number(self.rotation[2]) + "_" +
+                "s" + simplify_number(self.scale[0]) + "_" +
+                simplify_number(self.scale[1]) + "_" +
+                simplify_number(self.scale[2]))
 
 class MeshLabels:
     def __init__(self, vertices, faces, vertex_labels, global_labels, vertex_label_names, global_label_names):
@@ -43,12 +68,13 @@ class MeshLabels:
         return MeshData(vertices=vertices, augmented_vertices=augmented_vertices, faces=self.faces, labels=labels)
         # return vertices, self.faces, augmented_vertices, labels
 
-def create_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshLabels:
+
+
+def calculate_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshLabels:
     if augmentation is not None:
-        transforms = augmentation.get_transforms()
         mesh = trimesh_util.get_transformed_mesh_trs(mesh,
-                                                     scale=transforms.scale,
-                                                     orientation=transforms.orientation)
+                                                     scale=augmentation.scale,
+                                                     orientation=augmentation.rotation)
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
     vertices = mesh_aux.vertices
     faces = mesh_aux.faces
@@ -72,12 +98,14 @@ def create_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshLabels:
                                                                          return_num_samples=True)
     if num_samples != num_vertices:
         print("ERROR not all vertices returned thicknesses")
+        return
 
     _, gaps, num_samples = mesh_aux.calculate_gaps_at_points(points=vertices,
                                                              normals=normals,
                                                              return_num_samples=True)
     if num_samples != num_vertices:
         print("ERROR not all vertices returned gaps")
+        return
 
     _, curvatures, num_samples = mesh_aux.calculate_curvature_at_points(origins=vertices,
                                                                         face_ids=None,
@@ -86,6 +114,7 @@ def create_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshLabels:
                                                                         return_num_samples=True)
     if num_samples != num_vertices:
         print("ERROR not all vertices returned curvature")
+        return
 
     surface_area = mesh_aux.surface_area
     volume = mesh_aux.volume
@@ -105,50 +134,61 @@ class MeshFolder:
     def __init__(self, dataset_path, mesh_name):
         self.dataset_path = dataset_path
         self.mesh_name = mesh_name
-        self.mesh_path = dataset_path + mesh_name + "/"
-        self.mesh_file_path = self.mesh_path + "mesh.stl"
+        self.mesh_dir_path = dataset_path + mesh_name + "/"
+        self.mesh_set_path = self.mesh_dir_path + "mesh.stl"
 
     def initialize_folder(self, mesh: trimesh.Trimesh):
         self.mesh = mesh
-        self.mesh.export(self.mesh_path + "mesh.stl")
+        self.mesh.export(self.mesh_dir_path + "mesh.stl")
         # self.num_vertices = len(self.mesh.vertices)
         # self.num_faces = len(self.mesh.faces)
 
-    # def load_from_folder(self):
-    #     # grab mesh
-    #     # grab manifest
-    #     self.mesh = trimesh.load(self.mesh_path + "mesh.stl")
-    #     self.num_vertices = len(self.mesh.vertices)
-    #     self.num_faces = len(self.mesh.faces)
+    def delete_augmentation(self, augmentation: Augmentation):
+        shutil.rmtree(self.mesh_dir_path + augmentation.as_string())
 
-    def create_new_augmentation(self, augmentation: Augmentation, override):
+    def calculate_and_save_augmentation(self, augmentation: Augmentation, override):
         # First check if augmentation already exists
         if self.augmentation_is_cached(augmentation):
             if override:
-                os.delete_file(augmentation.name)
+                print("Overriding Augmentation")
+                self.delete_augmentation(augmentation)
             else:
-                pass
+                print("Augmentation already exists. No action taken")
+                return
 
-        mesh = trimesh.load(self.mesh_path + "mesh.stl")
+        mesh = trimesh.load(self.mesh_dir_path + "mesh.stl")
 
-        # do the save
-        mesh_labels = create_mesh_labels(mesh=mesh, augmentation=augmentation)
+        # Calculate
+        mesh_labels = calculate_mesh_labels(mesh=mesh, augmentation=augmentation)
+
+        if mesh_labels is None:
+            return
 
         # Save
-        Path(self.mesh_path + augmentation.as_string()).mkdir(parents=True, exist_ok=True)
-        # save vertex
-        # save global
-        # save manifest: label names, global names, augmentation values
-        # save vertices
-        # save faces
+        aug_dir_path = self.mesh_dir_path + augmentation.as_string()
+        Path(aug_dir_path).mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "augmentation": augmentation.as_json(),
+            "vertex_label_names": mesh_labels.vertex_label_names,
+            "global_label_names": mesh_labels.global_label_names
+        }
+        with open(aug_dir_path + "/" + "manifest.json", 'w') as f:
+            json.dump(manifest, f)
+        Path(aug_dir_path).mkdir(parents=True, exist_ok=True)
+        np.save(aug_dir_path + "/" + "vertices", mesh_labels.vertices)
+        np.save(aug_dir_path + "/" + "faces", mesh_labels.faces)
+        np.save(aug_dir_path + "/" + "vertex_labels", mesh_labels.vertex_labels)
+        np.save(aug_dir_path + "/" + "global_labels", mesh_labels.global_labels)
 
     def augmentation_is_cached(self, augmentation: Augmentation):
-        directories = DirectoryManager.get_files(self.mesh_path)
+        directory_manager = FolderManager.DirectoryPathManager(base_path=self.mesh_dir_path, base_unit_is_file=False)
+        directories = directory_manager.get_file_names(extension=False)
         return augmentation.as_string() in directories
 
     def load_mesh_with_augmentation(self, augmentation: Augmentation):
-        aug_path = self.mesh_path + augmentation.as_string() + "/"
-        manifest = json.loads(aug_path + "manifest.json")
+        aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
+        with open(aug_path + "/" + "manifest.json", 'r') as f:
+            manifest = json.load(f)
         vertex_label_names = manifest["vertex_label_names"]
         global_label_names = manifest["global_label_names"]
         vertices = np.load(aug_path + "vertices.npy")
@@ -170,21 +210,23 @@ class MeshData:
         # Outputs
         self.labels = labels
 
-class PointCloudData:
-    # This is the data that gets loaded
-    def __init__(self, vertices, augmented_vertices, labels):
-        self.vertices
-        # Inputs
-        self.augmented_vertices
-        # Outputs
-        self.labels
-        self.labels_at
+# class PointCloudData:
+#     # This is the data that gets loaded
+#     def __init__(self, vertices, augmented_vertices, labels):
+#         self.vertices
+#         # Inputs
+#         self.augmented_vertices
+#         # Outputs
+#         self.labels
+#         self.labels_at
 
 class DatasetManager:
     def __init__(self, dataset_path):
         self.dataset_path = dataset_path
         # get mesh folders
-        self.mesh_folders = os.list_dir(self.dataset_path)
+        # folder_manager = FolderManager.DirectoryPathManager(base_path=dataset_path, base_unit_is_file=False)
+        os.listdir(self.dataset_path)
+        self.mesh_folders = os.listdir(self.dataset_path)
         self.mesh_folders.sort()
 
 
@@ -202,6 +244,75 @@ class DatasetManager:
 
     def get_point_clouds(self, num_point_clouds, num_points, augmentations: List[Augmentation]):
         pass
+
+
+if __name__=="__main__":
+    base_folder = paths.DATASETS_PATH + "Thingi10k_Ready/train/"
+    desired_path = paths.DATA_PATH + "th10k_norm/train/"
+
+    generate_intial_folders = False
+    max_submesh_index = 4
+
+    if generate_intial_folders:
+        start_from = 17950
+        # First generate initial folders and add initial pose
+        Path(desired_path).mkdir(parents=True, exist_ok=True)
+
+        # Grab all meshes
+        origin_dataset_manager = FolderManager.DirectoryPathManager(base_path=base_folder, base_unit_is_file=True)
+
+        for file_path in tqdm(origin_dataset_manager.file_paths[start_from:]):
+            submesh_index = get_submesh_index(file_path.file_name)
+            if submesh_index > max_submesh_index:
+                continue
+            # Check validity
+            default_augmentation = Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+                                                rotation=np.array([0.0, 0.0, 0.0]))
+            mesh = trimesh.load(file_path.as_absolute())
+            mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+            if not mesh_aux.vertex_normals_valid():
+                print("Vertex Normals invalid")
+                continue
+
+            mesh_labels = calculate_mesh_labels(mesh=mesh, augmentation=default_augmentation)
+            if mesh_labels is None:
+                continue
+
+            # save
+            mesh_folder = MeshFolder(dataset_path=desired_path, mesh_name=file_path.as_subfolder_string())
+            Path(mesh_folder.mesh_dir_path).mkdir(parents=True, exist_ok=True)
+            mesh_folder.initialize_folder(mesh)
+            mesh_folder.calculate_and_save_augmentation(default_augmentation, override=True)
+
+    # Now add augmentations
+    augmentation_list = []
+    #
+    # augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+    #                                       rotation=np.array([0.0, 0.0, 0.0])))
+    # ========= Orientations ===========
+    augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+                                          rotation=np.array([np.pi, 0.0, 0.0])))
+    augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+                                          rotation=np.array([np.pi / 2, 0.0, 0.0])))
+    augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+                                          rotation=np.array([-np.pi / 2, 0.0, 0.0])))
+    # # ========= Scalings ============
+    augmentation_list.append(Augmentation(scale=np.array([2.0, 1.0, 1.0]),
+                                          rotation=np.array([0.0, 0.0, 0.0])))
+    augmentation_list.append(Augmentation(scale=np.array([1.0, 2.0, 1.0]),
+                                          rotation=np.array([0.0, 0.0, 0.0])))
+    augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 2.0]),
+                                          rotation=np.array([0.0, 0.0, 0.0])))
+
+    mesh_folder_paths = os.listdir(desired_path)
+    for mesh_folder_path in tqdm(mesh_folder_paths):
+        mesh_folder = MeshFolder(desired_path, mesh_folder_path)
+        for augmentation in augmentation_list:
+            mesh_folder.calculate_and_save_augmentation(augmentation, override=False)
+
+
+
+
 
 
 

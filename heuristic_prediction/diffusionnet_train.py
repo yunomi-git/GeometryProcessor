@@ -1,12 +1,11 @@
 from __future__ import print_function
 
-
-from heuristic_prediction.diffusionnet_model import DiffusionNetData, DiffusionNetWrapper, DiffusionNetDataset
+from heuristic_prediction.diffusionnet_model import DiffusionNetWrapper, DiffusionNetDataset
 
 import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
-from heuristic_prediction.regression_tools import RegressionTools, succinct_label_save_name
+from heuristic_prediction.regression_tools import RegressionTools, succinct_label_save_name, seed_all
 import paths
 from torch.utils.data import DataLoader
 import math
@@ -29,7 +28,7 @@ label_names = [
 ]
 
 model_args = {
-    "input_feature_type": 'hks', # xyz, hks
+    "input_feature_type": 'xyz', # xyz, hks
     "k_eig": 64,
     "num_outputs": len(label_names),
     "C_width": 128,
@@ -110,14 +109,7 @@ if __name__=="__main__":
                              num_workers=24,
                              batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 
-    model = DiffusionNetWrapper(input_feature_type=model_args["input_feature_type"],
-                                num_outputs=model_args["num_outputs"],
-                                C_width=model_args["C_width"], N_block=model_args["N_block"],
-                                last_activation=model_args["last_activation"], outputs_at=model_args["outputs_at"],
-                                mlp_hidden_dims=model_args["mlp_hidden_dims"], dropout=model_args["dropout"],
-                                with_gradient_features=model_args["with_gradient_features"],
-                                with_gradient_rotations=model_args["with_gradient_rotations"],
-                                diffusion_method=model_args["diffusion_method"])
+    model = DiffusionNetWrapper(args, op_cache_dir)
     model = model.to(device)
 
     # === Optimize
@@ -133,7 +125,8 @@ if __name__=="__main__":
         model=model,
         opt=opt,
         scheduler=scheduler,
-        clip_parameters=True
+        clip_parameters=True,
+        include_faces=True
     )
 
     regression_manager.train(args, do_test=False, plot_every_n_epoch=1)

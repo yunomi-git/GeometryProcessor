@@ -12,7 +12,7 @@ ONSHAPE_STL_PATH = HOME_PATH + "../Datasets/Onshape_STL_Dataset/"
 # THINGIVERSE_STL_PATH = HOME_PATH + "../Thingiverse_STL_Dataset/"
 THINGIVERSE_STL_PATH = HOME_PATH + "../Datasets/Dataset_Thingiverse_10k/"
 
-DATA_PATH = HOME_PATH + "data/"
+DATA_PATH = HOME_PATH + "../CachedDatasets/"
 
 def get_files_multifolder(base_folder, files_per_folder):
     files = []

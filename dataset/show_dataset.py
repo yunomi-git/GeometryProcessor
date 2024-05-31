@@ -10,7 +10,7 @@ import util
 from process_and_save import calculate_instance_target, get_augmented_mesh
 
 if __name__ == "__main__":
-    mode = "single" # single or multi
+    mode = "multi" # single or multi
     if mode == "single":
         # Single STL
         # mesh_path = paths.get_onshape_stl_path(233)
@@ -35,19 +35,21 @@ if __name__ == "__main__":
 
         # mesh = trimesh_util.get_transformed_mesh(mesh, scale=1.0, translation=np.array([1, 0, 0]),
         #                                          orientation=np.array([0.0, 0.0, np.pi/2]))
-        mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+        # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
         # centroid = np.mean(mesh_aux.vertices, axis=0)
         # print(centroid)
         # trimesh_util.show_mesh(mesh)
 
         ## Normals
-        # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+        mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
         # points, normals = mesh_aux.sample_and_get_normals(count=5000, even=False, area_weight=False)
-        # trimesh_util.show_mesh_with_normals(mesh, points, normals)
+        points = mesh_aux.vertices
+        normals = mesh_aux.vertex_normals
+        trimesh_util.show_mesh_with_normals(mesh, points, normals)
 
         ## Samples
         # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-        points, values = mesh_aux.calculate_curvature_samples(curvature_method="abs", count=5000)
+        # points, values = mesh_aux.calculate_curvature_samples(curvature_method="abs", count=5000)
         # samples, normals = mesh_aux.get_vertices_and_normals()
         # points, values = mesh_aux.calculate_thickness_at_points(samples, normals, return_num_samples=False)
         # points, values = mesh_aux.calculate_gap_samples()
@@ -58,7 +60,7 @@ if __name__ == "__main__":
 
         # points, values = mesh_aux.calculate_overhangs_samples()
         #
-        trimesh_util.show_sampled_values(mesh, points, values)
+        # trimesh_util.show_sampled_values(mesh, points, values)
     else:
         file_manager = MeshDatasetFileManager(paths.DATA_PATH + "data_th5k_norm/")
         mesh_paths = file_manager.get_mesh_files(absolute=True)
@@ -91,11 +93,17 @@ if __name__ == "__main__":
             # trimesh_util.show_mesh(mesh)
             # trimesh_util.show_mesh_with_orientation(mesh)
 
+            # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+            # points, normals = mesh_aux.sample_and_get_normals(count=5000, even=False, area_weight=False)
+            points = mesh_aux.vertices
+            normals = mesh_aux.vertex_normals
+            trimesh_util.show_mesh_with_normals(mesh, points, normals)
+
             ## Samples
             # points, values = mesh_aux.calculate_gap_samples()
             # points, values = mesh_aux.calculate_thicknesses_samples()
-            points, values = mesh_aux.calculate_overhangs_samples(cutoff_angle_rad=np.pi/4)
-            trimesh_util.show_sampled_values(mesh, points, values)
+            # points, values = mesh_aux.calculate_overhangs_samples(cutoff_angle_rad=np.pi/4)
+            # trimesh_util.show_sampled_values(mesh, points, values)
 
             ## Facets
             # values = mesh_aux.calculate_gap_facets()

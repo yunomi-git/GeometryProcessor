@@ -46,12 +46,22 @@ class MeshAuxilliaryInfo:
         self.faces = mesh.faces
         self.facet_defects = None
 
+        self.volume = mesh.volume
+
         self.edges = mesh.edges
         self.num_edges = len(self.edges)
 
         self.vertices = mesh.vertices
         self.num_vertices = len(self.vertices)
         self.vertex_normals = mesh.vertex_normals
+
+    def vertex_normals_valid(self):
+        _, _, num_hits = self.calculate_thickness_at_points(self.vertices, self.vertex_normals, return_num_samples=True)
+        return num_hits == len(self.vertices)
+
+    def face_normals_valid(self):
+        _, _, num_hits = self.calculate_thickness_at_points(self.face_centroids, self.face_normals, return_num_samples=True)
+        return num_hits == len(self.face_centroids)
 
     def get_vertices_and_normals(self):
         return self.vertices, self.vertex_normals
@@ -175,10 +185,13 @@ class MeshAuxilliaryInfo:
                                                                    multiple_hits=False)
         hit_origins = points[ray_ids]
         distances = np.linalg.norm(hits - hit_origins, axis=1)
-        gap_sizes = distances
+        # gap_sizes = distances
+
+        gap_sizes = np.ones(len(points)) * NO_GAP_VALUE
+        gap_sizes[ray_ids] = distances
 
         if return_num_samples:
-            return hit_origins, gap_sizes, len(tri_ids)
+            return hit_origins, gap_sizes, len(gap_sizes)
         else:
             return hit_origins, gap_sizes
 
@@ -323,12 +336,19 @@ def get_largest_submesh(mesh: trimesh.Trimesh):
     return mesh
 
 def get_valid_submeshes(mesh: trimesh.Trimesh):
+    # Ordered by volume
     valid_meshes = []
+    volumes = []
     splits = list(mesh.split(only_watertight=True))
     for submesh in splits:
         mesh_aux = MeshAuxilliaryInfo(submesh)
         if mesh_aux.is_valid:
             valid_meshes.append(submesh)
+            volumes.append(mesh_aux.volume)
+
+    # Sort
+    volumes = np.array(volumes)
+    valid_meshes = valid_meshes[np.argsort(volumes)]
     return valid_meshes
 
 def normalize_mesh(mesh: trimesh.Trimesh, center, normalize_scale) -> trimesh.Trimesh:

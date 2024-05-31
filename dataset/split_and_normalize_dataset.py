@@ -16,7 +16,7 @@ if __name__=="__main__":
     ### Single Folder
     folder_manager = FolderManager.DirectoryPathManager(original_path, max_files_per_subfolder=-1, base_unit_is_file=True)
 
-
+    max_submeshes = 4
 
     for file_path in tqdm(folder_manager.file_paths):
         try:
@@ -29,7 +29,7 @@ if __name__=="__main__":
 
         sub_meshes = trimesh_util.get_valid_submeshes(mesh)
         i_submesh = 0
-        for submesh in sub_meshes:
+        for submesh in sub_meshes[:4]:
             submesh = trimesh_util.normalize_mesh(submesh, center=True, normalize_scale=True)
             Path(new_path + file_path.subfolder_path).mkdir(parents=True, exist_ok=True)
             submesh.export(new_path + file_path.as_relative(extension=False) + "_" + str(i_submesh) + ".stl")
