@@ -46,6 +46,7 @@ class RegressionTools:
         print("Saving checkpoints to: ", self.checkpoint_path)
         self.io = self.create_checkpoints(args)
         self.gradient_accumulation_steps = args["grad_acc_steps"]
+        self.NUM_PLOT_POINTS = 10000
         # self.io.cprint("Total training data: " + str(self.train_loader.))
 
 
@@ -59,7 +60,7 @@ class RegressionTools:
         io = IOStream(self.checkpoint_path + 'run.log')
         return io
 
-    def get_training_evaluations_pointcloud(self, training=True):
+    def get_evaluations_pointcloud(self, training=True):
         train_loss = 0.0
         count = 0.0
         self.model.train()
@@ -93,15 +94,29 @@ class RegressionTools:
             batch_size = data.size()[0]
             count += batch_size
             train_loss += loss.item() * batch_size
-            train_true.append(label.cpu().numpy())
-            train_pred.append(preds.detach().cpu().numpy())
+            # train_true.append(label.cpu().numpy())
+            # train_pred.append(preds.detach().cpu().numpy())
+
+            label = label.cpu().numpy()
+            preds = preds.detach().cpu().numpy()
+            # for vertices, outputs as batch x dim x points. swap to batch*points x dim
+            if len(label.shape) == 3:
+                label = label.reshape((label.shape[0] * label.shape[1], label.shape[2]), order="F")
+                preds = preds.reshape((preds.shape[0] * preds.shape[1], preds.shape[2]), order="F")
+
+            train_true.append(label)
+            train_pred.append(preds)
 
         return train_loss, count, train_pred, train_true
 
-    def get_training_evaluations_mesh(self, training=True):
+    def get_evaluations_mesh(self, training=True):
         train_loss = 0.0
         count = 0.0
-        self.model.train()
+        if training:
+            self.model.train()
+        else:
+            self.model.eval()
+
         self.opt.zero_grad()
         train_pred = []
         train_true = []
@@ -133,72 +148,50 @@ class RegressionTools:
             batch_size = vertices.size()[0]
             count += batch_size
             train_loss += loss.item() * batch_size
-            train_true.append(label.cpu().numpy())
-            train_pred.append(preds.detach().cpu().numpy())
+
+            label = label.cpu().numpy()
+            preds = preds.detach().cpu().numpy()
+            # for vertices, outputs as batch x dim x points. swap to batch*points x dim
+            if len(label.shape) == 3:
+                label = label.reshape((label.shape[0] * label.shape[1], label.shape[2]), order="F")
+                preds = preds.reshape((preds.shape[0] * preds.shape[1], preds.shape[2]), order="F")
+
+            train_true.append(label)
+            train_pred.append(preds)
 
         return train_loss, count, train_pred, train_true
 
-    def train(self, args, do_test=True, plot_every_n_epoch=-1, outputs_at="global"):
+    def train(self, args, do_test=True, plot_every_n_epoch=-1):
         best_res_mag = 0
-        loss_history = []
+        loss_train_history = []
         res_train_history = []
+        loss_test_history = []
+        res_test_history = []
         labels = args["label_names"]
         for epoch in range(args['epochs']):
             print(datetime.now())
             ####################
             # Train
             ####################
-            # train_loss = 0.0
-            # count = 0.0
             self.model.train()
             self.opt.zero_grad()
-            # train_pred = []
-            # train_true = []
+
             with torch.enable_grad():
-                # for batch_idx, (data, label, weight) in enumerate(tqdm(self.train_loader)):
-                #     data, label = data.to(self.device), label.to(self.device)
-                #     weight = weight.to(self.device)
-                #     weight = torch.sqrt(weight)
-                #
-                #     preds = self.model(data)
-                #     loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
-                #     loss.backward()
-                #
-                #     if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
-                #         if self.clip_parameters:
-                #             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
-                #         self.opt.step()
-                #         self.opt.zero_grad()
-                #
-                #     batch_size = data.size()[0]
-                #     count += batch_size
-                #     train_loss += loss.item() * batch_size
-                #     train_true.append(label.cpu().numpy())
-                #     train_pred.append(preds.detach().cpu().numpy())
                 if not self.include_faces:
-                    train_loss, count, train_pred, train_true = self.get_training_evaluations_pointcloud(training=True)
+                    train_loss, count, train_pred, train_true = self.get_evaluations_pointcloud(training=True)
                 else:
-                    train_loss, count, train_pred, train_true = self.get_training_evaluations_mesh(training=True)
+                    train_loss, count, train_pred, train_true = self.get_evaluations_mesh(training=True)
 
             if self.scheduler is not None:
                 if self.args["scheduler"] == "plateau":
-                    self.scheduler.step(loss)
+                    self.scheduler.step(train_loss)
                 else:
                     self.scheduler.step()
 
             train_true = np.concatenate(train_true)
             train_pred = np.concatenate(train_pred)
 
-            # for vertices, outputs as batch x dim x points. swap to batch*points x dim
-            if outputs_at == "vertices":
-                train_true = train_true.reshape(
-                    (train_true.shape[0] * train_true.shape[1], train_true.shape[2]),
-                    order="F")
-                train_pred = train_pred.reshape(
-                    (train_pred.shape[0] * train_pred.shape[1], train_pred.shape[2]),
-                    order="F")
-            # TODO Prediction sometimes contain NAN. Fix!!
-            res = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values') #num_val x dims
+            res_train = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values') #num_val x dims
             acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.05)
 
             outstr = ('========\nTrain Epoch: %d '
@@ -208,102 +201,131 @@ class RegressionTools:
                       '\n\tacc: %s' %
                       (epoch,
                        train_loss * 1.0 / count,
-                       str(res),
+                       str(res_train),
                        self.opt.param_groups[0]['lr'],
                        str(acc)))
             self.io.cprint(outstr)
 
-            loss_history.append(train_loss * 1.0 / count)
-            res_train_history.append(res)
-
-            # Loss
-            if (plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0) or epoch + 1 == args['epochs']:
-                timer = Stopwatch()
-                timer.start()
-                plt.figure(0)
-                plt.clf()
-                for i in range(len(res)):
-                    plt.subplot(len(res), 1, i+1)
-                    plt.scatter(train_true[:, i], train_pred[:, i] - train_true[:, i], alpha=0.15)
-                    plt.hlines(y=0, xmin=min(train_true[:, i]), xmax=max(train_true[:, i]), color="red")
-                    plt.xlabel("Train True")
-                    plt.ylabel(labels[i] + " Error")
-
-                plt.savefig(self.checkpoint_path + "images/" + 'confusion_' + str(epoch) + '.png')
-
-                plt.figure(2)
-                plt.clf()
-
-                for i in range(len(res)):
-                    res_history = np.array(res_train_history)
-                    plt.subplot(len(res), 1, i+1)
-                    plt.plot(res_history[:, i])
-                    plt.ylabel(labels[i] + " Train R2")
-                    plt.xlabel("Epoch")
-
-                plt.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
-
-                plt.figure(1)
-                plt.clf()
-                plt.plot(loss_history)
-                plt.ylabel("Loss")
-                plt.xlabel("Epoch")
-                plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
-                print("Time to save figures: ", timer.get_time())
-
-
+            loss_train_history.append(train_loss * 1.0 / count)
+            res_train_history.append(res_train)
 
             ####################
             # Test
             ####################
             if do_test:
-                # test_loss = 0.0
-                # count = 0.0
                 self.model.eval()
-                # test_pred = []
-                # test_true = []
                 with torch.no_grad():
                     if not self.include_faces:
-                        test_loss, count, test_pred, test_true = self.get_training_evaluations_pointcloud(
+                        test_loss, count, test_pred, test_true = self.get_evaluations_pointcloud(
                             training=False)
                     else:
-                        test_loss, count, test_pred, test_true = self.get_training_evaluations_mesh(training=False)
-                    # for data, label, weight in tqdm(self.test_loader):
-                    #     data, label = data.to(self.device), label.to(self.device)
-                    #     weight = weight.to(self.device)
-                    #     weight = torch.sqrt(weight)
-                    #     # data = data.permute(0, 2, 1)
-                    #     preds = self.model(data)
-                    #     loss = self.loss_criterion(weight * preds, weight * label)
-                    #
-                    #     batch_size = data.size()[0]
-                    #     count += batch_size
-                    #     test_loss += loss.item() * batch_size
-                    #     test_true.append(label.cpu().numpy())
-                    #     test_pred.append(preds.detach().cpu().numpy())
+                        test_loss, count, test_pred, test_true = self.get_evaluations_mesh(training=False)
 
                 test_true = np.concatenate(test_true)
                 test_pred = np.concatenate(test_pred)
 
-                if outputs_at == "vertices":
-                    test_true = test_true.reshape(
-                        (test_true.shape[0] * test_true.shape[1], test_true.shape[2]),
-                        order="F")
-                    test_pred = test_pred.reshape(
-                        (test_pred.shape[0] * test_pred.shape[1], test_pred.shape[2]),
-                        order="F")
-
-                res = metrics.r2_score(y_true=test_true, y_pred=test_pred, multioutput='raw_values')
-                outstr = '--\n\tTest: \n\t\tLoss: %.6f \n\t\tr2: %s\n=========' % (test_loss * 1.0 / count, str(res))
+                res_test = metrics.r2_score(y_true=test_true, y_pred=test_pred, multioutput='raw_values')
+                outstr = ('--\n\tTest: \n\t\tLoss: %.6f \n\t\tr2: %s\n=========' %
+                          (test_loss * 1.0 / count, str(res_test)))
                 self.io.cprint(outstr)
 
-                if (res > 0).all() and np.linalg.norm(res) > best_res_mag:
-                    best_res_mag = np.linalg.norm(res)
+
+                loss_test_history.append(train_loss * 1.0 / count)
+                res_test_history.append(res_test)
+
+            # Logging
+            if (plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0) or epoch + 1 == args['epochs']:
+                timer = Stopwatch()
+                timer.start()
+                self.save_r2(epoch, r2=res_train, true=train_true, pred=train_pred, labels=labels)
+
+                if do_test:
+                    self.save_r2(epoch, r2=res_test, true=test_true, pred=test_pred, labels=labels)
+                    self.save_loss(labels=labels,
+                                   res_train_history=res_train_history, loss_train_history=loss_train_history,
+                                   res_test_history=res_test_history, loss_test_history=loss_test_history)
+                else:
+                    self.save_loss(labels=labels,
+                                   res_train_history=res_train_history, loss_train_history=loss_train_history)
+
+                print("Time to save figures: ", timer.get_time())
+
+            # Save Checkpoint
+            if do_test:
+                res_mag = np.linalg.norm(res_test)
+                if (res_test > 0).all() and res_mag > best_res_mag:
+                    best_res_mag = res_mag
                     torch.save(self.model.state_dict(), self.checkpoint_path + 'model.t7')
             else:
-                if (res > 0).all() and np.linalg.norm(res) > best_res_mag:
-                    best_res_mag = np.linalg.norm(res)
+                res_mag = np.linalg.norm(res_train)
+                if (res_train > 0).all() and res_mag > best_res_mag:
+                    best_res_mag = res_mag
                     torch.save(self.model.state_dict(), self.checkpoint_path + 'model.t7')
+
+
+    def save_r2(self, epoch, r2, true, pred, labels):
+        plt.figure(0)
+        plt.clf()
+        for i in range(len(r2)):
+            plt.subplot(len(r2), 1, i + 1)
+            # sort
+            error = pred[:, i] - true[:, i]
+            true = true[:, i]
+            sorted_ind = np.argsort(error)
+            error = error[sorted_ind]
+            true = true[sorted_ind]
+
+            # grab some of the highest and lowers
+            # Then grab items in between
+            plot_indices = np.zeros(self.NUM_PLOT_POINTS)
+            num_edge_points = self.NUM_PLOT_POINTS // 10
+            num_data_points = len(error)
+            plot_indices[:num_edge_points] = np.arange(num_edge_points)
+            plot_indices[-num_edge_points:] = np.arange(num_data_points - num_edge_points, num_data_points)
+            plot_indices[num_edge_points:-num_edge_points] = (np.arange(start=num_edge_points,
+                                                                        step=int(num_data_points / (self.NUM_PLOT_POINTS - 2 * num_edge_points)),
+                                                                        stop=num_data_points - num_edge_points))
+
+            plt.scatter(true[plot_indices], error[plot_indices], alpha=0.15)
+            plt.hlines(y=0, xmin=min(true[:, i]), xmax=max(true[:, i]), color="red")
+            plt.xlabel("Train True")
+            plt.ylabel(labels[i] + " Error")
+
+        plt.savefig(self.checkpoint_path + "images/" + 'confusion_' + str(epoch) + '.png')
+
+    def save_loss(self, labels, res_train_history, loss_train_history, res_test_history=None, loss_test_history=None):
+        timer = Stopwatch()
+        timer.start()
+
+        plt.figure(2)
+        plt.clf()
+
+        for i in range(len(labels)):
+            plt.subplot(len(labels), 1, i + 1)
+            train_res_history = np.array(res_train_history)
+            plt.plot(train_res_history[:, i], label='train')
+
+            if res_test_history is not None:
+                test_res_history = np.array(res_train_history)
+                plt.plot(test_res_history[:, i], label='test')
+
+            plt.ylabel(labels[i] + " Train R2")
+            plt.xlabel("Epoch")
+            plt.legend()
+
+        plt.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
+
+        plt.figure(1)
+        plt.clf()
+        plt.plot(loss_train_history, label='train')
+        if loss_test_history is not None:
+            plt.plot(loss_test_history, label='test')
+
+        plt.ylabel("Loss")
+        plt.xlabel("Epoch")
+        plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
+        print("Time to save figures: ", timer.get_time())
+
 
 def get_accuracy_tolerance(preds: np.ndarray, actual: np.ndarray, tolerance=0.1):
     # input preds, actual: N x M for N values, M labels
@@ -331,41 +353,7 @@ def seed_all(seed):
     torch.backends.cudnn.deterministic = True
     os.environ['PYTHONHASHSEED'] = str(seed) # What is this?
     os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE" # What is this?
-# class TrainingLogger:
-#     def __init__(self, save_path):
-#         self.save_path = save_path
-#
-#     def log_current_epoch(self):
-#         loss_history.append(train_loss * 1.0 / count)
-#         res_train_history.append(res)
-#
-#     def print(self):
-#         outstr = ('========\nTrain Epoch: %d '
-#                   '\n\tLoss: %.6f '
-#                   '\n\tr2: %s '
-#                   '\n\tlr: %s '
-#                   '\n\tacc: %s' %
-#                   (epoch, train_loss * 1.0 / count, str(res), self.opt.param_groups[0]['lr'], str(acc)))
-#         self.io.cprint(outstr)
-#
-#     def save_images(self):
-#         plt.figure(0)
-#         plt.clf()
-#         plt.scatter(train_true, train_pred)
-#         plt.xlabel("Train True")
-#         plt.ylabel("Train Pred")
-#         plt.savefig(self.checkpoint_path + "images/" + 'confusion_' + str(epoch) + '.png')
-#
-#         plt.figure(1)
-#         plt.clf()
-#         plt.plot(loss_history)
-#         plt.ylabel("Loss")
-#         plt.xlabel("Epoch")
-#         plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
-#
-#         plt.figure(2)
-#         plt.clf()
-#         plt.plot(res_train_history)
-#         plt.ylabel("Train R2")
-#         plt.xlabel("Epoch")
-#         plt.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
+
+
+
+

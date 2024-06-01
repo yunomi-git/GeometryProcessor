@@ -36,17 +36,17 @@ model_args = {
 experiment_name = succinct_label_save_name(label_names)
 
 args = {
-    "dataset_name": "mcb_scale_a",
+    "dataset_name": "th10k_norm/train",
     "testset_name": "mcb_test",
     "exp_name": experiment_name,
     "label_names": label_names,
     "input_append_label_names": input_append_label_names,
-    "seed": 2,
+    "seed": 1,
 
     # Dataset Param
     "data_fraction": 1.0,
     "data_fraction_test": 1.0,
-    "do_test": True,
+    "do_test": False,
     "workers": 24,
 
     "sampling_method": "even",
@@ -87,17 +87,18 @@ if __name__ == "__main__":
                                                 remove_outlier_ratio=args["remove_outlier_ratio"]),
                               num_workers=args["workers"],
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
-    test_loader = DataLoader(PointCloudDataset(test_root_dir, args['num_points'], label_names=label_names,
-                                               append_label_names=args['input_append_label_names'],
-                                               partition='test',
-                                               data_fraction=args["data_fraction_test"],
-                                               normalize_outputs=args["normalize_outputs"],
-                                               sampling_method=args["sampling_method"],
-                                               outputs_at=args["outputs_at"],
-                                               imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
-                                               remove_outlier_ratio=args["remove_outlier_ratio"]),
-                             num_workers=args["workers"],
-                             batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
+    if args["do_test"]:
+        test_loader = DataLoader(PointCloudDataset(test_root_dir, args['num_points'], label_names=label_names,
+                                                   append_label_names=args['input_append_label_names'],
+                                                   partition='test',
+                                                   data_fraction=args["data_fraction_test"],
+                                                   normalize_outputs=args["normalize_outputs"],
+                                                   sampling_method=args["sampling_method"],
+                                                   outputs_at=args["outputs_at"],
+                                                   imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
+                                                   remove_outlier_ratio=args["remove_outlier_ratio"]),
+                                 num_workers=args["workers"],
+                                 batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 
     ### Model ###
     if args["outputs_at"] == "global":

@@ -16,12 +16,11 @@ import trimesh_util
 from diffusion_net.layers import DiffusionNet
 
 class DiffusionNetDataset(Dataset):
-    def __init__(self, data_root_dir, split_size, k_eig, outputs_at, augmentations: str | List[Augmentation] = "none",
+    def __init__(self, data_root_dir, k_eig, outputs_at, augmentations: str | List[Augmentation] = "none",
                  op_cache_dir=None, data_fraction=1.0, label_names=None,
                  extra_vertex_label_names=None, extra_global_label_names=None,
-                 augment_random_rotate=True, is_training=True):
+                 augment_random_rotate=True, is_training=True, cache_operators=True):
         self.root_dir = data_root_dir
-        self.split_size = split_size  # pass None to take all entries (except those in exclude_dict)
         self.k_eig = k_eig
         self.k_eig_list = []
         self.op_cache_dir = op_cache_dir
@@ -42,20 +41,25 @@ class DiffusionNetDataset(Dataset):
         label_names = label_names
 
         # Open the base directory and get the contents
-        mesh_folders = file_manager.get_mesh_folders()
-        num_files = len(mesh_folders)
+        num_files = len(file_manager.mesh_folder_names)
         num_file_to_use = int(data_fraction * num_files)
-        # mesh_folders = mesh_folders[util.get_permutation_for_list(mesh_folders, num_file_to_use)]
+        mesh_folders = file_manager.get_mesh_folders(num_file_to_use)
+        # mesh_folder_names = mesh_folder_names[util.get_permutation_for_list(mesh_folder_names, num_file_to_use)]
 
         # Now parse through all the files
+        print("Loading Meshes")
         for mesh_folder in tqdm(mesh_folders):
             # TODO load default aug if desired
-            if augmentations == "default":
+            if augmentations == "none":
                 mesh_labels = [mesh_folder.load_default_mesh()]
             elif augmentations == "all":
-                mesh_labels = mesh_folder.load_all_augmentations()
+                print("Not Implemented")
+                return
+                # mesh_labels = mesh_folder.load_all_augmentations()
             else:
-                mesh_labels = mesh_folder.load_specific_augmentations_if_available(self.augmentations)
+                print("Not Implemented")
+                return
+                # mesh_labels = mesh_folder.load_specific_augmentations_if_available(self.augmentations)
 
             for mesh_label in mesh_labels:
                 mesh_data = mesh_label.convert_to_data(self.outputs_at, label_names,
@@ -66,11 +70,18 @@ class DiffusionNetDataset(Dataset):
                 label = mesh_data.labels
                 faces = mesh_data.faces
 
+                verts = torch.tensor(verts).float()
+                faces = torch.tensor(faces)
+                aug_verts = torch.tensor(aug_verts).float()
+                label = torch.tensor(label).float()
+
                 # Attempt to get eigen decomposition. If cannot, skip
-                try:
+                # try:
+                if cache_operators:
                     diffusion_net.geometry.get_operators(verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
-                except:  # Or valueerror or ArpackError
-                    continue
+                # except:  # Or valueerror or ArpackError
+                #     print("eigen error")
+                #     continue
 
                 self.all_faces.append(faces)
                 self.all_vertices.append(aug_verts)
@@ -86,8 +97,8 @@ class DiffusionNetDataset(Dataset):
 
         # TODO data gets permuted after batch
         # Randomly rotate positions
-        if self.augment_random_rotate and self.is_training:
-            verts = diffusion_net.utils.random_rotate_points(verts)
+        # if self.augment_random_rotate and self.is_training:
+        #     verts = diffusion_net.utils.random_rotate_points(verts)
 
         return verts, faces, label
 
@@ -166,7 +177,7 @@ class DiffusionNetDataset2(Dataset):
         return verts, faces, label
 
 class DiffusionNetWrapper(nn.Module):
-    def __init__(self, model_args, op_cache_dir):
+    def __init__(self, model_args, op_cache_dir, device):
         super(DiffusionNetWrapper, self).__init__()
 
         input_feature_type = model_args["input_feature_type"]
@@ -180,6 +191,8 @@ class DiffusionNetWrapper(nn.Module):
         with_gradient_features = model_args["with_gradient_features"]
         with_gradient_rotations = model_args["with_gradient_rotations"]
         diffusion_method = model_args["diffusion_method"]
+        self.k_eig = model_args["k_eig"]
+        self.device = device
 
         self.input_feature_type = input_feature_type
         self.op_cache_dir = op_cache_dir
@@ -193,15 +206,29 @@ class DiffusionNetWrapper(nn.Module):
                                           diffusion_method=diffusion_method)
 
     def forward(self, verts, faces):
+        # TODO: this assumes batch size 1 right now
         # Calculate properties
-        frames, mass, L, evals, evecs, gradX, gradY = diffusion_net.geometry.get_operators(verts, faces,
+        verts = verts[0]
+        faces = faces[0]
+        # raw_verts = verts[:, :3]
+        frames, mass, L, evals, evecs, gradX, gradY = diffusion_net.geometry.get_operators(verts[:, :3], faces,
                                                                                            k_eig=self.k_eig,
                                                                                            op_cache_dir=self.op_cache_dir)
+        verts = verts.to(self.device)
+        faces = faces.to(self.device)
+        # frames = frames.to(device)
+        mass = mass.to(self.device)
+        L = L.to(self.device)
+        evals = evals.to(self.device)
+        evecs = evecs.to(self.device)
+        gradX = gradX.to(self.device)
+        gradY = gradY.to(self.device)
         # Construct features
         if self.input_feature_type == 'xyz':
             features = verts
         else:  # self.input_feature_type == 'hks':
             features = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 16)  # TODO autoscale here
 
-        return self.wrapped_model.forward(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX,
+        out = self.wrapped_model.forward(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX,
                                           gradY=gradY, faces=faces)
+        return out[None, :, :]

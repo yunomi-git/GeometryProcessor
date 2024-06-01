@@ -79,7 +79,8 @@ def get_random_n_in_list(list, n):
     assert n < len(list)
     indices = np.arange(n)
     permutation = np.random.permutation(indices)
-    return list[permutation]
+    output = [list[i] for i in permutation]
+    return output
 
 
 class DictionaryList:

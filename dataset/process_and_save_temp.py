@@ -7,8 +7,9 @@ import json
 from typing import List
 import os
 import shutil
-import FolderManager
+import dataset.FolderManager as FolderManager
 from tqdm import tqdm
+import util
 
 def get_submesh_index(mesh_name):
     index = mesh_name.find("_")
@@ -54,27 +55,33 @@ class MeshRawLabels:
         label_indices = []
         for desired_label in desired_vertex_label_names:
             label_indices.append(self.vertex_label_names.index(desired_label))
-        return self.vertex_labels[:, :, label_indices]
+        return self.vertex_labels[:, label_indices]
 
     def get_global_labels(self, desired_global_label_names):
         label_indices = []
         for desired_label in desired_global_label_names:
             label_indices.append(self.global_label_names.index(desired_label))
-        return self.global_labels[:, :, label_indices]
+        return self.global_labels[label_indices]
 
     def convert_to_data(self, outputs_at, label_names,
                         extra_vertex_label_names=None, extra_global_label_names=None):
-        extra_vertex_labels = self.get_vertex_labels(extra_vertex_label_names)
-        extra_global_labels = self.get_global_labels(extra_global_label_names)
-        vertices = self.vertices
-        augmented_vertices = np.stack(vertices, extra_vertex_labels, extra_global_labels) # TODO
+        augmented_vertices = self.vertices
+        if len(extra_vertex_label_names) > 0:
+            extra_vertex_labels = self.get_vertex_labels(extra_vertex_label_names)
+            augmented_vertices = np.stack(augmented_vertices, extra_vertex_labels)
+        if len(extra_global_label_names) > 0:
+            extra_global_labels = self.get_global_labels(extra_global_label_names)
+            augmented_vertices = np.stack(augmented_vertices,
+                                          np.repeat(extra_global_labels[np.newaxis, :], len(augmented_vertices)))
+
+
+        # augmented_vertices = np.stack(vertices, extra_vertex_labels, np.repeat(extra_global_labels[np.newaxis, :], len(vertices))) # TODO
         if outputs_at == "vertices":
             labels = self.get_vertex_labels(label_names)
         else:
             labels = self.get_global_labels(label_names)
-        return MeshReadyData(vertices=vertices, augmented_vertices=augmented_vertices, faces=self.faces, labels=labels)
-        # return vertices, self.faces, augmented_vertices, labels
-
+        return MeshReadyData(vertices=self.vertices, augmented_vertices=augmented_vertices,
+                             faces=self.faces, labels=labels)
 
 
 def calculate_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshRawLabels:
@@ -130,8 +137,8 @@ def calculate_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshRawLabel
     vertex_labels = [thicknesses, gaps, normals[:, 0], normals[:, 1], normals[:, 2], curvatures]
     global_labels = [surface_area, volume, centroid[0], centroid[1], centroid[2]]
 
-    vertex_labels = np.stack(vertex_labels)
-    global_labels = np.array([global_labels])
+    vertex_labels = np.stack(vertex_labels).T
+    global_labels = np.array(global_labels)
 
     return MeshRawLabels(vertices=vertices, faces=faces, vertex_labels=vertex_labels,
                          global_labels=global_labels, vertex_label_names=vertex_label_names,
@@ -141,7 +148,7 @@ class MeshFolder:
     def __init__(self, dataset_path, mesh_name):
         self.dataset_path = dataset_path
         self.mesh_name = mesh_name
-        self.mesh_dir_path = dataset_path + mesh_name + "/"
+        self.mesh_dir_path = dataset_path + str(mesh_name) + "/"
         self.mesh_set_path = self.mesh_dir_path + "mesh.stl"
 
     def initialize_folder(self, mesh: trimesh.Trimesh):
@@ -192,13 +199,13 @@ class MeshFolder:
         available_augmentations = directory_manager.get_file_names(extension=False)
         return augmentation.as_string() in available_augmentations
 
-    def load_mesh_with_augmentation(self, augmentation: Augmentation=None, augmentation_string: str=None):
-        assert not (augmentation_string is None and augmentation is None)
+    def load_mesh_with_augmentation(self, augmentation: Augmentation):
+        # assert not (augmentation_string is None and augmentation is None)
 
-        if augmentation is not None:
-            aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
-        else:
-            aug_path = self.mesh_dir_path + augmentation_string + "/"
+        # if augmentation is not None:
+        aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
+        # else:
+        #     aug_path = self.mesh_dir_path + augmentation_string + "/"
         with open(aug_path + "/" + "manifest.json", 'r') as f:
             manifest = json.load(f)
         vertex_label_names = manifest["vertex_label_names"]
@@ -208,8 +215,9 @@ class MeshFolder:
         vertex_labels = np.load(aug_path + "vertex_labels.npy")
         global_labels = np.load(aug_path + "global_labels.npy")
 
-        return MeshRawLabels(vertices=vertices, faces=faces, vertex_labels=vertex_labels,
-                             global_labels=global_labels, vertex_label_names=vertex_label_names,
+        # TODO: Meshes were saved incorrectly the first time. need to redo
+        return MeshRawLabels(vertices=vertices, faces=faces, vertex_labels=vertex_labels.T,
+                             global_labels=global_labels[0], vertex_label_names=vertex_label_names,
                              global_label_names=global_label_names)
 
     def load_default_mesh(self):
@@ -252,25 +260,19 @@ class DatasetManager:
     def __init__(self, dataset_path):
         self.dataset_path = dataset_path
         # get mesh folders
-        # folder_manager = FolderManager.DirectoryPathManager(base_path=dataset_path, base_unit_is_file=False)
-        os.listdir(self.dataset_path)
-        self.mesh_folders = os.listdir(self.dataset_path)
-        self.mesh_folders.sort()
+        # os.listdir(self.dataset_path)
+        self.mesh_folder_names = os.listdir(self.dataset_path)
+        self.mesh_folder_names.sort()
 
-    def get_mesh_folders(self) -> List[MeshFolder]:
-        pass
-
-    def get_meshes(self, num_meshes, augmentations: List[Augmentation]):
+    def get_mesh_folders(self, num_meshes): #, num_meshes, augmentations: List[Augmentation]):
         # grab num_meshes random meshes
-        mesh_folders = self.mesh_folders[:num_meshes]
-        mesh_labels = []
-        for mesh_folder in mesh_folders:
-            mesh_folder = MeshFolder(self.dataset_path, mesh_folder)
-            for augmentation in augmentations:
-                mesh_label = mesh_folder.load_mesh_with_augmentation(augmentation)
-                mesh_labels.append(mesh_label)
+        mesh_folders = []
+        mesh_names = util.get_random_n_in_list(self.mesh_folder_names, num_meshes)
+        for mesh_name in mesh_names:
+            mesh_folder = MeshFolder(self.dataset_path, mesh_name)
+            mesh_folders.append(mesh_folder)
 
-        return mesh_labels
+        return mesh_folders
 
     def get_point_clouds(self, num_point_clouds, num_points, augmentations: List[Augmentation]):
         pass
