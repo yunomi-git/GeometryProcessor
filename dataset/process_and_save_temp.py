@@ -199,13 +199,17 @@ class MeshFolder:
         available_augmentations = directory_manager.get_file_names(extension=False)
         return augmentation.as_string() in available_augmentations
 
-    def load_mesh_with_augmentation(self, augmentation: Augmentation):
-        # assert not (augmentation_string is None and augmentation is None)
-
+    def load_mesh_with_augmentation(self, augmentation):
+        if isinstance(augmentation, Augmentation):
+            aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
+        else: # (string)
+            aug_path = self.mesh_dir_path + augmentation + "/"
+        # assert not (aug_as_string is None and augmentation is None)
+        #
         # if augmentation is not None:
-        aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
+        #     aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
         # else:
-        #     aug_path = self.mesh_dir_path + augmentation_string + "/"
+        #     aug_path = self.mesh_dir_path + aug_as_string + "/"
         with open(aug_path + "/" + "manifest.json", 'r') as f:
             manifest = json.load(f)
         vertex_label_names = manifest["vertex_label_names"]
@@ -226,7 +230,11 @@ class MeshFolder:
     def load_all_augmentations(self):
         directory_manager = FolderManager.DirectoryPathManager(base_path=self.mesh_dir_path, base_unit_is_file=False)
         available_augmentations = directory_manager.get_file_names(extension=False)
-        return self.load_specific_augmentations_if_available(available_augmentations)
+        mesh_labels = []
+        for aug_string in available_augmentations:
+            mesh_labels.append(self.load_mesh_with_augmentation(aug_string))
+        return mesh_labels
+        # return self.load_specific_augmentations_if_available(available_augmentations)
         # TODO This takes filenames not actual augmentations
 
     def load_specific_augmentations_if_available(self, augmentations: List[Augmentation]):

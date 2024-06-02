@@ -67,7 +67,7 @@ args = {
     "input_append_global_label_names": input_append_global_label_names,
     "outputs_at": "vertices",
     "seed": 1,
-    "augmentations": "none",
+    "augmentations": "all",
 
     # Dataset Param
     "data_fraction": 0.5,
@@ -107,7 +107,8 @@ if __name__=="__main__":
                                                   extra_global_label_names=args["input_append_global_label_names"],
                                                   outputs_at=args["outputs_at"],
                                                   is_training=True,
-                                                  cache_operators=False),
+                                                  augmentations=args["augmentations"],
+                                                  cache_operators=True),
                                   num_workers=24,
                                   batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = None
@@ -119,6 +120,7 @@ if __name__=="__main__":
                                                      extra_vertex_label_names=args["input_append_vertex_label_names"],
                                                      extra_global_label_names=args["input_append_global_label_names"],
                                                      outputs_at=args["outputs_at"],
+                                                     augmentations=args["augmentations"],
                                                      is_training=False),
                                  num_workers=24,
                                  batch_size=args['test_batch_size'], shuffle=True, drop_last=False)

@@ -53,8 +53,7 @@ class DiffusionNetDataset(Dataset):
             if augmentations == "none":
                 mesh_labels = [mesh_folder.load_default_mesh()]
             elif augmentations == "all":
-                print("Not Implemented")
-                return
+                mesh_labels = mesh_folder.load_all_augmentations()
                 # mesh_labels = mesh_folder.load_all_augmentations()
             else:
                 print("Not Implemented")
