@@ -8,13 +8,10 @@ import util
 import matplotlib.pyplot as plt
 
 
-## Global
-# def non_outlier_indices_1d(data, num_bins, threshold_ratio_to_remove):
-#     is_not_outlier = is_not_outlier_1d(data, num_bins, threshold_ratio_to_remove)
-#     keep_indices = np.argwhere(is_not_outlier).flatten()
-#     return keep_indices
+
 
 def is_not_outlier_1class(data, num_bins, threshold_ratio_to_remove):
+    # Gets the indices of non-outlier data n x 1, where n is datapoints and d is labels per point.
     # returns if each element in data is an outlier or not
     data = data.flatten()
     # data as n x 1 for 1d data array
@@ -31,9 +28,11 @@ def is_not_outlier_1class(data, num_bins, threshold_ratio_to_remove):
     return np.isin(data_bin_list, non_outlier_bins)
 
 def non_outlier_indices(data, num_bins, threshold_ratio_to_remove):
+    # Gets the indices of non-outlier data n x d, where n is datapoints and d is labels per point.
     # data as n x d for d labels per datapoint
     num_labels = data.shape[1]
-    is_not_outlier_per_class = np.array([is_not_outlier_1class(data, num_bins, threshold_ratio_to_remove) for i in range(num_labels)])
+    # Do 1D outlier check for each class
+    is_not_outlier_per_class = np.array([is_not_outlier_1class(data[:, i], num_bins, threshold_ratio_to_remove) for i in range(num_labels)])
     is_not_outlier = np.all(is_not_outlier_per_class, axis=0)
 
     keep_indices = np.argwhere(is_not_outlier).flatten()
@@ -41,8 +40,11 @@ def non_outlier_indices(data, num_bins, threshold_ratio_to_remove):
 
 
 ## Vertices
-def get_bins_vertices_1class(data, num_bins):
-    # data in the form of data x vertices x 1 class
+def vertex_to_bin_map_1class(data, num_bins):
+    # Which data belongs in which bin?
+    # out: data x vertices mapping vertex to bin
+    # in: data in the form of data x vertices x 1 class
+
     # save shape as data x vertices
     shape = data.shape[:2]
     # first flatten into 1 x data*vertices
@@ -57,6 +59,8 @@ def get_bins_vertices_1class(data, num_bins):
     return data_bin_list.reshape(shape)
 
 def is_not_outlier_vertices_1class(data, num_bins, threshold_ratio_to_remove):
+    # TODO: get this to work for inhomogeneous vertices
+    # TODO: try method 2: standard deviations from median
     # each point cloud has vertices. checks for vertices that are outliers.
     # returns point clouds with no outlier vertices
 
@@ -66,7 +70,7 @@ def is_not_outlier_vertices_1class(data, num_bins, threshold_ratio_to_remove):
     data_min = np.min(data)
     data_max = np.max(data)
 
-    data_bin_list = get_bins_vertices_1class(data, num_bins) # data x vertices
+    data_bin_list = vertex_to_bin_map_1class(data, num_bins) # data x [vertices]
     hist = histogram1d(data.flatten(), range=[data_min, data_max*1.001], bins=num_bins)
 
     # which bins don't have limited data?

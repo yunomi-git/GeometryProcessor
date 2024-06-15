@@ -1,11 +1,12 @@
 from __future__ import print_function
 
 from heuristic_prediction.diffusionnet_model import DiffusionNetWrapper, DiffusionNetDataset
-
+import numpy as np
 import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from heuristic_prediction.regression_tools import RegressionTools, succinct_label_save_name, seed_all
+from dataset.process_and_save_temp import Augmentation
 import paths
 from torch.utils.data import DataLoader
 import math
@@ -15,6 +16,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmResta
 device = torch.device('cuda')
 dtype = torch.float32
 
+cache_operators = False
+
 torch.cuda.empty_cache()
 
 label_names = [
@@ -22,8 +25,8 @@ label_names = [
     # "stairstep_violation",
     # "thickness_violation",
     # "gap_violation",
-    # "volume"
-    "Thickness"
+    "Volume"
+    # "curvature"
     # "surface_area"
 ]
 
@@ -39,6 +42,23 @@ input_append_global_label_names = [
     # "nz"
 ]
 
+rot_augmentations = [Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+                                    rotation=np.array([np.pi, 0.0, 0.0])),
+                        Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+                                      rotation=np.array([np.pi / 2, 0.0, 0.0])),
+                        Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+                                      rotation=np.array([-np.pi / 2, 0.0, 0.0]))]
+scale_augmentations = [Augmentation(scale=np.array([2.0, 1.0, 1.0]),
+                                      rotation=np.array([0.0, 0.0, 0.0])),
+                        Augmentation(scale=np.array([1.0, 2.0, 1.0]),
+                                      rotation=np.array([0.0, 0.0, 0.0])),
+                        Augmentation(scale=np.array([1.0, 1.0, 2.0]),
+                                      rotation=np.array([0.0, 0.0, 0.0]))]
+augmentations = scale_augmentations
+augmentations_string = []
+for aug in augmentations:
+    augmentations_string.append(aug.as_string())
+
 model_args = {
     "input_feature_type": 'xyz', # xyz, hks
     "k_eig": 64,
@@ -47,27 +67,29 @@ model_args = {
     "C_width": 128,
     "N_block": 4,
     "last_activation": None,
-    "outputs_at": 'vertices',
+    "outputs_at": 'global',
     "mlp_hidden_dims": None,
     "dropout": True,
     "with_gradient_features": True,
     "with_gradient_rotations": True,
     "diffusion_method": 'spectral',
+    "data_parallel": False
     # "device": device
 }
 
 experiment_name = succinct_label_save_name(label_names)
 
 args = {
-    "dataset_name": "th10k_norm/train",
-    "testset_name": "th10k_norm/test",
+    "dataset_name": "th10k_norm/",
+    "testset_name": "th10k_norm/",
     "exp_name": experiment_name,
     "label_names": label_names,
     "input_append_vertex_label_names": input_append_vertex_label_names,
     "input_append_global_label_names": input_append_global_label_names,
     "outputs_at": "vertices",
-    "seed": 1,
-    "augmentations": "all",
+    "seed": 2,
+    "augmentations": "none",
+    "remove_outlier_ratio": 0.1,
 
     # Dataset Param
     "data_fraction": 0.5,
@@ -95,9 +117,10 @@ args.update(model_args)
 
 if __name__=="__main__":
     seed_all(args["seed"])
-    data_root_dir = paths.DATA_PATH + args["dataset_name"] + "/"
-    test_root_dir = paths.DATA_PATH + args["testset_name"] + "/"
-    op_cache_dir = data_root_dir + "op_cache"
+    data_root_dir = paths.DATA_PATH + args["dataset_name"] + "train/"
+    test_root_dir = paths.DATA_PATH + args["testset_name"] + "test/"
+    op_cache_dir = paths.DATA_PATH + args["dataset_name"] + "op_cache/"
+    print(op_cache_dir)
 
     train_loader = DataLoader(DiffusionNetDataset(data_root_dir, model_args["k_eig"],
                                                   op_cache_dir=op_cache_dir,
@@ -108,7 +131,8 @@ if __name__=="__main__":
                                                   outputs_at=args["outputs_at"],
                                                   is_training=True,
                                                   augmentations=args["augmentations"],
-                                                  cache_operators=True),
+                                                  remove_outlier_ratio=args["remove_outlier_ratio"],
+                                                  cache_operators=cache_operators),
                                   num_workers=24,
                                   batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = None
@@ -121,6 +145,7 @@ if __name__=="__main__":
                                                      extra_global_label_names=args["input_append_global_label_names"],
                                                      outputs_at=args["outputs_at"],
                                                      augmentations=args["augmentations"],
+                                                     remove_outlier_ratio=args["remove_outlier_ratio"],
                                                      is_training=False),
                                  num_workers=24,
                                  batch_size=args['test_batch_size'], shuffle=True, drop_last=False)

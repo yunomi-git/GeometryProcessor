@@ -149,7 +149,7 @@ class MeshFolder:
         self.dataset_path = dataset_path
         self.mesh_name = mesh_name
         self.mesh_dir_path = dataset_path + str(mesh_name) + "/"
-        self.mesh_set_path = self.mesh_dir_path + "mesh.stl"
+        self.mesh_stl_path = self.mesh_dir_path + "mesh.stl"
 
     def initialize_folder(self, mesh: trimesh.Trimesh):
         self.mesh = mesh
@@ -194,22 +194,21 @@ class MeshFolder:
         np.save(aug_dir_path + "/" + "vertex_labels", mesh_labels.vertex_labels)
         np.save(aug_dir_path + "/" + "global_labels", mesh_labels.global_labels)
 
-    def augmentation_is_cached(self, augmentation: Augmentation):
+    def augmentation_is_cached(self, augmentation):
         directory_manager = FolderManager.DirectoryPathManager(base_path=self.mesh_dir_path, base_unit_is_file=False)
         available_augmentations = directory_manager.get_file_names(extension=False)
-        return augmentation.as_string() in available_augmentations
+        if isinstance(augmentation, Augmentation):
+            return augmentation.as_string() in available_augmentations
+        else: # (string)
+            return augmentation in available_augmentations
 
-    def load_mesh_with_augmentation(self, augmentation):
+
+    def load_mesh_with_augmentation(self, augmentation) -> MeshRawLabels:
         if isinstance(augmentation, Augmentation):
             aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
         else: # (string)
             aug_path = self.mesh_dir_path + augmentation + "/"
-        # assert not (aug_as_string is None and augmentation is None)
-        #
-        # if augmentation is not None:
-        #     aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
-        # else:
-        #     aug_path = self.mesh_dir_path + aug_as_string + "/"
+
         with open(aug_path + "/" + "manifest.json", 'r') as f:
             manifest = json.load(f)
         vertex_label_names = manifest["vertex_label_names"]
@@ -227,7 +226,7 @@ class MeshFolder:
     def load_default_mesh(self):
         return self.load_mesh_with_augmentation(DEFAULT_AUGMENTATION)
 
-    def load_all_augmentations(self):
+    def load_all_augmentations(self) -> List[MeshRawLabels]:
         directory_manager = FolderManager.DirectoryPathManager(base_path=self.mesh_dir_path, base_unit_is_file=False)
         available_augmentations = directory_manager.get_file_names(extension=False)
         mesh_labels = []
@@ -237,10 +236,11 @@ class MeshFolder:
         # return self.load_specific_augmentations_if_available(available_augmentations)
         # TODO This takes filenames not actual augmentations
 
-    def load_specific_augmentations_if_available(self, augmentations: List[Augmentation]):
+    def load_specific_augmentations_if_available(self, augmentations: List[Augmentation] | List[str]):
         mesh_labels = []
         for augmentation in augmentations:
-            mesh_labels.append(self.load_mesh_with_augmentation(augmentation))
+            if self.augmentation_is_cached(augmentation):
+                mesh_labels.append(self.load_mesh_with_augmentation(augmentation))
         return mesh_labels
 
 
