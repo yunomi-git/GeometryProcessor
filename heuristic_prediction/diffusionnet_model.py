@@ -12,6 +12,7 @@ import math
 import trimesh
 import torch
 import trimesh_util
+import util
 
 from diffusion_net.layers import DiffusionNet
 from diffusion_net.geometry import toNP
@@ -60,17 +61,12 @@ class DiffusionNetDataset(Dataset):
         # Now parse through all the files
         print("Loading Meshes")
         for mesh_folder in tqdm(mesh_folders):
-            # TODO load default aug if desired
             if augmentations == "none":
                 mesh_labels = [mesh_folder.load_default_mesh()]
             elif augmentations == "all":
                 mesh_labels = mesh_folder.load_all_augmentations()
             else:
-                # print("loading augmentations: ")
-                # print(self.augmentations)
                 mesh_labels = mesh_folder.load_specific_augmentations_if_available(self.augmentations)
-                # print("Dataset: Specific augmentations Not Implemented")
-                # return
 
 
             for mesh_label in mesh_labels:
@@ -82,27 +78,25 @@ class DiffusionNetDataset(Dataset):
                 label = mesh_data.labels
                 faces = mesh_data.faces
 
-                verts = torch.tensor(verts).float()
-                faces = torch.tensor(faces)
-                aug_verts = torch.tensor(aug_verts).float()
-                label = torch.tensor(label).float()
+                tensor_vert = torch.tensor(verts).float()
+                tensor_face = torch.tensor(faces)
 
-                if not torch.isfinite(verts).all() or not torch.isfinite(faces).all():
+                if not np.isfinite(verts).all() or not np.isfinite(faces).all():
                     print("Dataset: Nan found in mesh. skipping", mesh_folder.mesh_name, "Recommending manual deletion")
                     continue
 
-                if not mesh_is_valid_diffusion(verts, faces):
+                if not mesh_is_valid_diffusion(tensor_vert, tensor_face):
                     print("Dataset: Face index exceeds vertices. skipping", mesh_folder.mesh_name, "Recommending manual deletion")
                     continue
 
-                if not torch.isfinite(label).all():
+                if not np.isfinite(label).all():
                     print("Dataset: nan in labels. skipping", mesh_folder.mesh_name, "Recommending manual deletion")
                     continue
 
                 # Attempt to get eigen decomposition. If cannot, skip
                 if cache_operators:
                     try:
-                        diffusion_net.geometry.get_operators(verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
+                        diffusion_net.geometry.get_operators(tensor_vert, tensor_face, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
                     except:  # Or valueerror or ArpackError
                         print("Dataset: Error calculating decomposition. Skipping", mesh_folder.mesh_name, "Recommending manual deletion")
                         continue
@@ -113,18 +107,21 @@ class DiffusionNetDataset(Dataset):
                 self.all_labels.append(label)
 
         if remove_outlier_ratio > 0.0:
-            stacked_labels = torch.stack(self.all_labels, dim=0).detach().numpy()
+            print("Removing outliers")
+            timer = util.Stopwatch()
+            timer.start()
             if outputs_at == "global":
-                keep_indices = non_outlier_indices(stacked_labels, num_bins=15,
+                keep_indices = non_outlier_indices(self.all_labels, num_bins=15,
                                                    threshold_ratio_to_remove=remove_outlier_ratio)
             else:  # vertices
-                keep_indices = non_outlier_indices_vertices_nclass(stacked_labels, num_bins=15,
+                keep_indices = non_outlier_indices_vertices_nclass(self.all_labels, num_bins=15,
                                                                    threshold_ratio_to_remove=remove_outlier_ratio)
             original_length = len(self.all_labels)
             self.all_faces = [self.all_faces[i] for i in keep_indices]
             self.all_vertices = [self.all_vertices[i] for i in keep_indices]
             self.all_labels = [self.all_labels[i] for i in keep_indices]
             new_length = len(self.all_labels)
+            print("Time to remove outliers:", timer.get_time())
             print("Removed", original_length - new_length, "outliers.")
 
 
@@ -136,6 +133,10 @@ class DiffusionNetDataset(Dataset):
         verts = self.all_vertices[idx]
         faces = self.all_faces[idx]
         label = self.all_labels[idx]
+
+        verts = torch.tensor(verts).float()
+        faces = torch.tensor(faces)
+        label = torch.tensor(label).float()
 
         # Randomly rotate positions
         # if self.augment_random_rotate and self.is_training:

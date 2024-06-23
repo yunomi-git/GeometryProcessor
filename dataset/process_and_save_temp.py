@@ -54,22 +54,26 @@ class MeshRawLabels:
     def get_vertex_labels(self, desired_vertex_label_names):
         label_indices = []
         for desired_label in desired_vertex_label_names:
+            if desired_label not in self.vertex_label_names:
+                print("Vertex label not found. available label names: ", self.vertex_label_names)
             label_indices.append(self.vertex_label_names.index(desired_label))
         return self.vertex_labels[:, label_indices]
 
     def get_global_labels(self, desired_global_label_names):
         label_indices = []
         for desired_label in desired_global_label_names:
+            if desired_label not in self.global_label_names:
+                print("Global label not found. available label names: ", self.global_label_names)
             label_indices.append(self.global_label_names.index(desired_label))
         return self.global_labels[label_indices]
 
     def convert_to_data(self, outputs_at, label_names,
                         extra_vertex_label_names=None, extra_global_label_names=None):
         augmented_vertices = self.vertices
-        if len(extra_vertex_label_names) > 0:
+        if extra_vertex_label_names is not None and len(extra_vertex_label_names) > 0:
             extra_vertex_labels = self.get_vertex_labels(extra_vertex_label_names)
             augmented_vertices = np.stack(augmented_vertices, extra_vertex_labels)
-        if len(extra_global_label_names) > 0:
+        if extra_global_label_names is not None and len(extra_global_label_names) > 0:
             extra_global_labels = self.get_global_labels(extra_global_label_names)
             augmented_vertices = np.stack(augmented_vertices,
                                           np.repeat(extra_global_labels[np.newaxis, :], len(augmented_vertices)))
@@ -80,8 +84,8 @@ class MeshRawLabels:
             labels = self.get_vertex_labels(label_names)
         else:
             labels = self.get_global_labels(label_names)
-        return MeshReadyData(vertices=self.vertices, augmented_vertices=augmented_vertices,
-                             faces=self.faces, labels=labels)
+        return GeometryReadyData(vertices=self.vertices, augmented_vertices=augmented_vertices,
+                                 faces=self.faces, labels=labels)
 
 
 def calculate_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshRawLabels:
@@ -223,6 +227,15 @@ class MeshFolder:
                              global_labels=global_labels[0], vertex_label_names=vertex_label_names,
                              global_label_names=global_label_names)
 
+    def load_mesh_with_augmentations(self, augmentations: List[Augmentation] | List[str]) -> List[MeshRawLabels]:
+        if augmentations == "none" or augmentations is None:
+            mesh_labels = [self.load_default_mesh()]
+        elif augmentations == "all":
+            mesh_labels = self.load_all_augmentations()
+        else:
+            mesh_labels = self.load_specific_augmentations_if_available(augmentations)
+        return mesh_labels
+
     def load_default_mesh(self):
         return self.load_mesh_with_augmentation(DEFAULT_AUGMENTATION)
 
@@ -236,7 +249,7 @@ class MeshFolder:
         # return self.load_specific_augmentations_if_available(available_augmentations)
         # TODO This takes filenames not actual augmentations
 
-    def load_specific_augmentations_if_available(self, augmentations: List[Augmentation] | List[str]):
+    def load_specific_augmentations_if_available(self, augmentations: List[Augmentation]):
         mesh_labels = []
         for augmentation in augmentations:
             if self.augmentation_is_cached(augmentation):
@@ -244,25 +257,18 @@ class MeshFolder:
         return mesh_labels
 
 
-class MeshReadyData:
+class GeometryReadyData:
     # This is the data that gets loaded
-    def __init__(self, vertices, faces, augmented_vertices, labels):
-        self.vertices = vertices
+    def __init__(self, vertices, augmented_vertices, labels, faces=None):
         # Inputs
+        self.vertices = vertices
         self.faces = faces
         self.augmented_vertices = augmented_vertices
         # Outputs
         self.labels = labels
 
-# class PointCloudData:
-#     # This is the data that gets loaded
-#     def __init__(self, vertices, augmented_vertices, labels):
-#         self.vertices
-#         # Inputs
-#         self.augmented_vertices
-#         # Outputs
-#         self.labels
-#         self.labels_at
+    def is_cloud(self):
+        return self.faces is None
 
 class DatasetManager:
     def __init__(self, dataset_path):
@@ -272,7 +278,7 @@ class DatasetManager:
         self.mesh_folder_names = os.listdir(self.dataset_path)
         self.mesh_folder_names.sort()
 
-    def get_mesh_folders(self, num_meshes): #, num_meshes, augmentations: List[Augmentation]):
+    def get_mesh_folders(self, num_meshes) -> List[MeshFolder]:#, num_meshes, augmentations: List[Augmentation]):
         # grab num_meshes random meshes
         mesh_folders = []
         mesh_names = util.get_random_n_in_list(self.mesh_folder_names, num_meshes)
@@ -282,9 +288,104 @@ class DatasetManager:
 
         return mesh_folders
 
-    def get_point_clouds(self, num_point_clouds, num_points, augmentations: List[Augmentation]):
-        pass
+    def load_mesh_data(self, num_meshes, augmentations: List[Augmentation], outputs_at="global",
+                       desired_label_names=None, extra_vertex_label_names=None, extra_global_label_names=None) -> List[GeometryReadyData]:
+        mesh_data_list = []
 
+        # Now parse through all the files
+        print("Loading Meshes")
+        print("- Using augmentations: ")
+        print(augmentations)
+
+        mesh_folders = self.get_mesh_folders(num_meshes)
+        for mesh_folder in tqdm(mesh_folders):
+            mesh_labels = mesh_folder.load_mesh_with_augmentations(augmentations)
+            for mesh_label in mesh_labels:
+                mesh_data = mesh_label.convert_to_data(outputs_at, desired_label_names,
+                                                       extra_vertex_label_names=extra_vertex_label_names,
+                                                       extra_global_label_names=extra_global_label_names)
+
+                if not np.isfinite(mesh_data.vertices).all() or not np.isfinite(mesh_data.faces).all():
+                    print("Dataset: Nan found in mesh. skipping", mesh_folder.mesh_name, "Recommending manual deletion")
+                    continue
+
+                if not np.isfinite(mesh_data.labels).all():
+                    print("Dataset: nan in labels. skipping", mesh_folder.mesh_name, "Recommending manual deletion")
+                    continue
+
+                mesh_data_list.append(mesh_data)
+        return mesh_data_list
+    def load_pointcloud_data(self, num_clouds, num_points, augmentations: List[Augmentation], outputs_at="global",
+                               desired_label_names=None, extra_vertex_label_names=None, extra_global_label_names=None):
+        cloud_data_list = []
+
+        # Now parse through all the files
+        print("Loading Meshes")
+        print("- Using augmentations: ")
+        print(augmentations)
+
+        mesh_folders = self.get_mesh_folders(num_clouds)
+        for mesh_folder in tqdm(mesh_folders):
+            mesh_labels = mesh_folder.load_mesh_with_augmentations(augmentations)
+            for mesh_label in mesh_labels:
+                mesh_data = mesh_label.convert_to_data(outputs_at, desired_label_names,
+                                                       extra_vertex_label_names=extra_vertex_label_names,
+                                                       extra_global_label_names=extra_global_label_names)
+
+                # Ensure number of points is valid
+                if len(mesh_data.vertices) < num_points:
+                    print("Dataset: Mesh does not have enough points. Skipping")
+                    continue
+
+                if not np.isfinite(mesh_data.vertices).all() or not np.isfinite(mesh_data.faces).all():
+                    print("Dataset: Nan found in mesh. skipping", mesh_folder.mesh_name, "Recommending manual deletion")
+                    continue
+
+                if not np.isfinite(mesh_data.labels).all():
+                    print("Dataset: nan in labels. skipping", mesh_folder.mesh_name, "Recommending manual deletion")
+                    continue
+
+                # Get a random permutation
+                permutation = util.get_permutation_for_list(mesh_data.vertices, num_points)
+                mesh_data.vertices = mesh_data.vertices[permutation]
+                mesh_data.augmented_vertices = mesh_data.augmented_vertices[permutation]
+                mesh_data.labels = mesh_data.labels[permutation]
+                # Remove the faces
+                mesh_data.faces = None
+
+                cloud_data_list.append(mesh_data)
+
+        return cloud_data_list
+
+    def load_numpy_pointcloud(self, num_clouds, num_points, augmentations: List[Augmentation], outputs_at="global",
+                               desired_label_names=None, extra_vertex_label_names=None, extra_global_label_names=None):
+        cloud_data_list = self.load_pointcloud_data(num_clouds, num_points, augmentations, outputs_at,
+                               desired_label_names, extra_vertex_label_names, extra_global_label_names)
+        clouds = []
+        augmented_clouds = []
+        labels = []
+        for cloud_data in cloud_data_list:
+            clouds.append(cloud_data.vertices)
+            augmented_clouds.append(cloud_data.augmented_vertices)
+            labels.append(cloud_data.labels)
+
+        return np.stack(clouds), np.stack(augmented_clouds), np.stack(labels)
+
+    def load_numpy_meshes(self, num_meshes, augmentations: List[Augmentation], outputs_at="global",
+                          desired_label_names=None, extra_vertex_label_names=None, extra_global_label_names=None):
+        mesh_data_list = self.load_mesh_data(num_meshes, augmentations, outputs_at,
+                                             desired_label_names, extra_vertex_label_names, extra_global_label_names)
+        vertices = []
+        augmented_vertices = []
+        faces = []
+        labels = []
+        for mesh_data in mesh_data_list:
+            vertices.append(mesh_data.vertices)
+            augmented_vertices.append(mesh_data.augmented_vertices)
+            faces.append(mesh_data.faces)
+            labels.append(mesh_data.labels)
+
+        return vertices, augmented_vertices, faces, labels
 
 if __name__=="__main__":
     base_folder = paths.DATASETS_PATH + "UnitTest/train/"

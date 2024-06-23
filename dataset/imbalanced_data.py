@@ -2,11 +2,12 @@ import numpy as np
 from fast_histogram import histogram1d
 from scipy.special import softmax
 from dataset.process_and_save import MeshDatasetFileManager
+import dataset.process_and_save_temp as pas2
 import paths
 import bisect
 import util
 import matplotlib.pyplot as plt
-
+from tqdm import tqdm
 
 
 
@@ -64,28 +65,50 @@ def is_not_outlier_vertices_1class(data, num_bins, threshold_ratio_to_remove):
     # each point cloud has vertices. checks for vertices that are outliers.
     # returns point clouds with no outlier vertices
 
-    # Input: data x vertices x 1 for 1 class
-    # Output: data x 1 boolean array
+    # Input: data x vertices (x 1) for 1 class
+    # Output: data (x 1) boolean array
 
     data_min = np.min(data)
     data_max = np.max(data)
 
     data_bin_list = vertex_to_bin_map_1class(data, num_bins) # data x [vertices]
-    hist = histogram1d(data.flatten(), range=[data_min, data_max*1.001], bins=num_bins)
+    hist = histogram1d(np.concatenate(data), range=[data_min, data_max*1.001], bins=num_bins)
 
     # which bins don't have limited data?
     non_outlier_bins = util.get_indices_of_conditional(hist > threshold_ratio_to_remove * len(data))
     not_outlier_per_cloud_vertex = np.isin(data_bin_list, non_outlier_bins) # data x vertices
-    not_outlier_per_cloud = np.all(not_outlier_per_cloud_vertex, axis=1) # data x 1
+    not_outlier_per_cloud = np.all(not_outlier_per_cloud_vertex, axis=1) # data (x 1)
 
     return not_outlier_per_cloud
 
 def non_outlier_indices_vertices_nclass(data, num_bins, threshold_ratio_to_remove):
-    # data as data x vertices x c. for c classes per vertex, multiple vertices per datapoint
+    # data as data x [vertices x c]. for c classes per vertex, multiple vertices per data entry
+    # input is either a np array [data x vertices x c] or a list of arrays data x [vertices x c]. If latter, sample to create a np array
     # does the calculation per class. Then concatenates classes together
+    num_classes = data[0].shape[1]
+    num_sample = 5000
+    if isinstance(data, np.ndarray):
+        preprocessed_data = data
+    else:
+        preprocessed_data = sample_equal_vertices_from_list(num_sample=num_sample, data_list=data)
+        # preprocessed_data = []
+        # print("Preprocessing Data")
+        # for cloud in tqdm(data):
+        #     sampled_cloud = np.zeros((num_sample+2, num_classes))
+        #     # sample num_samples from cloud. if cloud does not contain enough vertices, repeat
+        #     if len(cloud) < num_sample:
+        #         num_repeats = int(np.ceil(num_sample / len(cloud)))
+        #         cloud = np.repeat(cloud, num_repeats, axis=0)
+        #     np.random.shuffle(cloud)
+        #     # also add min and max
+        #     sampled_cloud[0] = np.min(cloud, axis=0)
+        #     sampled_cloud[1] = np.max(cloud, axis=0)
+        #     sampled_cloud[2:] = cloud[:num_sample]
+        #     preprocessed_data.append(sampled_cloud)
+        # preprocessed_data = np.stack(preprocessed_data)
+    # at this point, preprocessed_data is an np array [data x vertices x c]
 
-    num_labels = data.shape[2]
-    is_not_outlier_per_class = np.array([is_not_outlier_vertices_1class(data, num_bins, threshold_ratio_to_remove) for i in range(num_labels)]) # class x data
+    is_not_outlier_per_class = np.array([is_not_outlier_vertices_1class(preprocessed_data[:, :, i], num_bins, threshold_ratio_to_remove) for i in range(num_classes)]) # class x data
     is_not_outlier = np.all(is_not_outlier_per_class, axis=0) # data
 
     keep_indices = np.argwhere(is_not_outlier).flatten()
@@ -93,7 +116,7 @@ def non_outlier_indices_vertices_nclass(data, num_bins, threshold_ratio_to_remov
 
 ## weights
 
-def get_imbalanced_weight_1d(data, num_bins, modifier=None):
+def get_imbalanced_weight_1d(data: np.ndarray, num_bins, modifier=None):
     data = data.flatten()
     # data as n x 1 for 1d data array
     min = np.min(data)
@@ -116,7 +139,7 @@ def get_imbalanced_weight_1d(data, num_bins, modifier=None):
     # weights_per_bin /= np.min(weights_per_bin[weights_per_bin > 0])
     return weights_per_data
 
-def get_imbalanced_weight_nd(data, num_bins, modifier=None):
+def get_imbalanced_weight_nd(data: np.ndarray, num_bins, modifier=None):
     # data as n x d for d labels per datapoint
     num_labels = data.shape[1]
     weights_per_class = np.array([get_imbalanced_weight_1d(data[:, i], num_bins, modifier) for i in range(num_labels)]).T
@@ -152,9 +175,15 @@ def draw_weights(data, weights):
 
 ## DEBUGGING
 def debug_filter_outliers():
-    file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
-    label_names = ["surface_area"]
-    _, data, _ = file_manager.load_numpy_pointclouds(1, outputs_at="global", desired_label_names=label_names)
+    label_names = ["SurfaceArea"]
+    file_manager = pas2.DatasetManager(dataset_path=paths.DATA_PATH + "th10k_norm/train/")
+    _, _, data = file_manager.load_numpy_pointcloud(num_clouds=1000, num_points=1, outputs_at="global",
+                                                    augmentations="none", desired_label_names=label_names)
+
+    # label_names = ["surface_area"]
+    # file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
+    # _, data, _ = file_manager.load_numpy_pointclouds(1, outputs_at="global", desired_label_names=label_names)
+
     num_bins = 10
 
     # First look at default
@@ -170,19 +199,49 @@ def debug_filter_outliers():
     weights = get_imbalanced_weight_1d(data=data, num_bins=num_bins)
     draw_weights(data, weights)
 
-def debug_filter_outliers_vertices():
-    file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
-    label_names = ["thickness"]
-    _, data, _ = file_manager.load_numpy_pointclouds(5, outputs_at="vertices", desired_label_names=label_names)
+def sample_equal_vertices_from_list(num_sample, data_list) -> np.ndarray:
+    # data_list is data x [vertices x labels]. The number of vertices may vary across data entries, so we want to sample
+    # an equal number of vertices from each entry
+    # out: data x vertices x labels
+    num_classes = data_list[0].shape[1]
+    data_sampled = []
+    print("Preprocessing Data")
+    for cloud in tqdm(data_list):
+        sampled_cloud = np.zeros((num_sample + 2, num_classes))
+        # sample num_samples from cloud. if cloud does not contain enough vertices, repeat
+        if len(cloud) < num_sample:
+            num_repeats = int(np.ceil(num_sample / len(cloud)))
+            cloud = np.repeat(cloud, num_repeats, axis=0)
+        np.random.shuffle(cloud)
+        # also add min and max
+        sampled_cloud[0] = np.min(cloud, axis=0)
+        sampled_cloud[1] = np.max(cloud, axis=0)
+        sampled_cloud[2:] = cloud[:num_sample]
+        data_sampled.append(sampled_cloud)
+    data_sampled = np.stack(data_sampled)
+    return data_sampled
+
+def debug_filter_outliers_vertices(load_meshes):
+    label_names = ["Thickness"]
+    file_manager = pas2.DatasetManager(dataset_path=paths.DATA_PATH + "th10k_norm/train/")
+    if load_meshes:
+        _, _, _, data = file_manager.load_numpy_meshes(num_meshes=100, augmentations=None, outputs_at="vertices",
+                                                       desired_label_names=label_names)
+    else:
+        _, _, data = file_manager.load_numpy_pointcloud(num_clouds=100, num_points=5, outputs_at="vertices",
+                                                        augmentations="none", desired_label_names=label_names)
+
     num_bins = 10
 
     # First look at default
+    # TODO these need to work for both data = List[np] and data = np.ndarr
+    data = sample_equal_vertices_from_list(num_sample=500, data_list=data) # TODO weights still need to be calculated across all original data
     weights = get_imbalanced_weight_1d(data=data, num_bins=num_bins)
     draw_weights(data.flatten(), weights)
     original_length = len(data)
 
     # Then look at filtered
-    keep_indices = non_outlier_indices_vertices_nclass(data, num_bins=num_bins, threshold_ratio_to_remove=0.01)
+    keep_indices = non_outlier_indices_vertices_nclass(data, num_bins=num_bins, threshold_ratio_to_remove=0.1)
     data = data[keep_indices]
     weights = get_imbalanced_weight_1d(data=data, num_bins=num_bins)
     new_length = len(data)
@@ -249,6 +308,6 @@ def debug_print():
     print(weighting)
 
 if __name__=="__main__":
-    debug_filter_outliers_vertices()
+    debug_filter_outliers_vertices(load_meshes=True)
 
 

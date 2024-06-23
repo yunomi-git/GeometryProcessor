@@ -21,11 +21,8 @@ cache_operators = False
 torch.cuda.empty_cache()
 
 label_names = [
-    # "overhang_violation",
-    # "stairstep_violation",
-    # "thickness_violation",
-    # "gap_violation",
-    "Volume"
+    # "Volume"
+    "Thickness"
     # "curvature"
     # "surface_area"
 ]
@@ -67,7 +64,7 @@ model_args = {
     "C_width": 128,
     "N_block": 4,
     "last_activation": None,
-    "outputs_at": 'global',
+    "outputs_at": 'vertices',
     "mlp_hidden_dims": None,
     "dropout": True,
     "with_gradient_features": True,
@@ -89,7 +86,7 @@ args = {
     "outputs_at": "vertices",
     "seed": 2,
     "augmentations": "none",
-    "remove_outlier_ratio": 0.1,
+    "remove_outlier_ratio": 0.0,
 
     # Dataset Param
     "data_fraction": 0.5,

@@ -151,6 +151,7 @@ class RegressionTools:
                     self.opt.zero_grad()
             else:
                 loss = self.loss_criterion(weight * preds, weight * label)
+                # TODO why is the following getting calculated?
                 loss.backward()
 
                 if self.clip_parameters:
@@ -209,8 +210,6 @@ class RegressionTools:
                     self.scheduler.step(train_loss)
                 else:
                     self.scheduler.step()
-
-
 
             res_train = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values') #num_val x dims
             acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.05)
@@ -289,27 +288,11 @@ class RegressionTools:
         plt.clf()
         for i in range(len(r2)):
             plt.subplot(len(r2), 1, i + 1)
-            # sort
             error = pred[:, i] - true[:, i]
             true = true[:, i]
-            # sorted_ind = np.argsort(error)
-            # error = error[sorted_ind]
-            # true = true[sorted_ind]
 
             plot_indices = np.arange(start=0, stop=len(error), step=int(np.ceil(len(error) / self.NUM_PLOT_POINTS)),
                                      dtype=np.int64)
-
-            # grab some of the highest and lowers
-            # Then grab items in between
-            # plot_indices = np.zeros(self.NUM_PLOT_POINTS)
-            # num_edge_points = self.NUM_PLOT_POINTS // 10
-            # num_data_points = len(error)
-            # plot_indices[:num_edge_points] = np.arange(num_edge_points, dtype=np.int64)
-            # plot_indices[-num_edge_points:] = np.arange(num_data_points - num_edge_points, num_data_points, dtype=np.int64)
-            # plot_indices[num_edge_points:-num_edge_points] = (np.arange(start=num_edge_points,
-            #                                                             step=int(num_data_points / (self.NUM_PLOT_POINTS - 2 * num_edge_points)),
-            #                                                             stop=num_data_points - num_edge_points,
-            #                                                             dtype=np.int64))
 
             plt.scatter(true[plot_indices], error[plot_indices], alpha=0.15)
             plt.hlines(y=0, xmin=min(true), xmax=max(true), color="red")
