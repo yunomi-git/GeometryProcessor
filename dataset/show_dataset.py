@@ -10,12 +10,13 @@ import util
 from process_and_save import calculate_instance_target, get_augmented_mesh
 
 if __name__ == "__main__":
-    mode = "multi" # single or multi
+    mode = "single" # single or multi
     if mode == "single":
         # Single STL
         # mesh_path = paths.get_onshape_stl_path(233)
         # mesh_path = paths.get_thingiverse_stl_path(258, get_by_order=True)
-        mesh_path = paths.HOME_PATH + 'stls/Octocat.stl'
+        # mesh_path = paths.HOME_PATH + 'stls/Octocat.stl'
+        mesh_path = paths.RAW_DATASETS_PATH + 'DrivAerNet/Simplified_Remesh/N_S_WW_WM_3/Exp_001/N_S_WW_WM_3.stl'
         mesh = trimesh.load(mesh_path)
         # trimesh_util.show_mesh(mesh)
         #
@@ -42,16 +43,21 @@ if __name__ == "__main__":
 
         ## Normals
         mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-        # points, normals = mesh_aux.sample_and_get_normals(count=5000, even=False, area_weight=False)
-        points = mesh_aux.vertices
+        # points, normals = mesh_aux.sample_and_get_normals(count=5000, use_weight='even')
+        samples = mesh_aux.vertices
         normals = mesh_aux.vertex_normals
-        trimesh_util.show_mesh_with_normals(mesh, points, normals)
+        # trimesh_util.show_mesh_with_normals(mesh, samples, normals)
 
         ## Samples
         # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
         # points, values = mesh_aux.calculate_curvature_samples(curvature_method="abs", count=5000)
         # samples, normals = mesh_aux.get_vertices_and_normals()
         # points, values = mesh_aux.calculate_thickness_at_points(samples, normals, return_num_samples=False)
+        points, values, vertex_ids = mesh_aux.calculate_thickness_at_points(samples, normals, return_num_samples=False, return_ray_ids=True)
+        print("Num Inputs", len(samples))
+        print("Num Outputs", len(points))
+        values = trimesh_util.repair_missing_mesh_values(mesh, vertex_ids=vertex_ids, values=values, max_iterations=2)
+        points = mesh_aux.vertices
         # points, values = mesh_aux.calculate_gap_samples()
 
         # points, values = mesh_aux.calculate_thicknesses_samples()
@@ -60,9 +66,9 @@ if __name__ == "__main__":
 
         # points, values = mesh_aux.calculate_overhangs_samples()
         #
-        # trimesh_util.show_sampled_values(mesh, points, values)
+        trimesh_util.show_sampled_values(mesh, points, values)
     else:
-        file_manager = MeshDatasetFileManager(paths.DATA_PATH + "data_th5k_norm/")
+        file_manager = MeshDatasetFileManager(paths.CACHED_DATASETS_PATH + "data_th5k_norm/")
         mesh_paths = file_manager.get_mesh_files(absolute=True)
         num_meshes = len(mesh_paths)
         timer = util.Stopwatch()

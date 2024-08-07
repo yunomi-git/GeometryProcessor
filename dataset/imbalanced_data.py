@@ -146,15 +146,38 @@ def get_imbalanced_weight_nd(data: np.ndarray, num_bins, modifier=None):
     # weights_per_data = np.prod(weights_per_class, axis=0)
     return weights_per_class
 
-def draw_weights(data, weights):
+
+
+def draw_data(data, num_bins):
+    plt.subplot(2, 1, 1)
+    plt.hist(data, range=[np.min(data), np.max(data) * 1.001], bins=num_bins)
+
+    plt.subplot(2, 1, 2)
+    if len(data.shape) < 3:
+        data = data.flatten()
+        plt.scatter(data, np.random.rand(len(data)), alpha=0.1)
+    else: # 3
+        data = data.reshape(data.shape[:2])
+        indices = np.arange(len(data))
+        indices = np.stack(np.repeat(indices[:, np.newaxis], repeats=data.shape[1], axis=1))
+        plt.scatter(data, indices, alpha=0.1)
+    plt.xlabel("Data")
+    plt.show()
+
+
+
+def draw_weights(data, weights, num_bins):
     # weight_colors = np.prod(weights, axis=1)
     weight_colors = util.normalize_minmax_01(weights)
     cmapname = 'jet'
     cmap = plt.get_cmap(cmapname)
     colors = cmap(weight_colors)
-    colors[:, 3] = 0.15
+    colors[:, 3] = 0.05
 
-    plt.subplot(2, 1, 1)
+    plt.subplot(3, 1, 1)
+    plt.hist(data, range=[np.min(data), np.max(data) * 1.001], bins=num_bins)
+
+    plt.subplot(3, 1, 2)
     if len(data.shape) < 3:
         data = data.flatten()
         plt.scatter(data, np.random.rand(len(data)), c=colors)
@@ -165,7 +188,7 @@ def draw_weights(data, weights):
         plt.scatter(data, indices, c=colors)
     plt.xlabel("Data")
 
-    plt.subplot(2, 1, 2)
+    plt.subplot(3, 1, 3)
     plt.scatter(data, weights, c=colors)
     plt.xlabel("Data")
     plt.ylabel("Weights")
@@ -176,7 +199,7 @@ def draw_weights(data, weights):
 ## DEBUGGING
 def debug_filter_outliers():
     label_names = ["SurfaceArea"]
-    file_manager = pas2.DatasetManager(dataset_path=paths.DATA_PATH + "th10k_norm/train/")
+    file_manager = pas2.DatasetManager(dataset_path=paths.CACHED_DATASETS_PATH + "th10k_norm/train/")
     _, _, data = file_manager.load_numpy_pointcloud(num_clouds=1000, num_points=1, outputs_at="global",
                                                     augmentations="none", desired_label_names=label_names)
 
@@ -187,9 +210,9 @@ def debug_filter_outliers():
     num_bins = 10
 
     # First look at default
-    # data = data.flatten()
+    data = data.flatten()
     weights = get_imbalanced_weight_1d(data=data, num_bins=num_bins)
-    draw_weights(data, weights)
+    draw_weights(data, weights, num_bins)
 
     # Then look at filtered
     # keep_indices = non_outlier_indices(data, num_bins=num_bins, threshold_ratio_to_remove=0.075)
@@ -223,45 +246,59 @@ def sample_equal_vertices_from_list(num_sample, data_list) -> np.ndarray:
 
 def debug_filter_outliers_vertices(load_meshes):
     label_names = ["Thickness"]
-    file_manager = pas2.DatasetManager(dataset_path=paths.DATA_PATH + "th10k_norm/train/")
+    file_manager = pas2.DatasetManager(dataset_path=paths.CACHED_DATASETS_PATH + "th10k_norm/train/")
     if load_meshes:
         _, _, _, data = file_manager.load_numpy_meshes(num_meshes=100, augmentations=None, outputs_at="vertices",
                                                        desired_label_names=label_names)
     else:
         _, _, data = file_manager.load_numpy_pointcloud(num_clouds=100, num_points=5, outputs_at="vertices",
                                                         augmentations="none", desired_label_names=label_names)
-
+    # list of vertex values, n x [v]
     num_bins = 10
 
     # First look at default
     # TODO these need to work for both data = List[np] and data = np.ndarr
-    data = sample_equal_vertices_from_list(num_sample=500, data_list=data) # TODO weights still need to be calculated across all original data
-    weights = get_imbalanced_weight_1d(data=data, num_bins=num_bins)
-    draw_weights(data.flatten(), weights)
+    print("Looking at original")
+    sampled_data = sample_equal_vertices_from_list(num_sample=500, data_list=data) # TODO weights still need to be calculated across all original data
+    # weights = get_imbalanced_weight_1d(data=data, num_bins=num_bins)
+    flattened_data = util.flatten_list_by_one(data)
+    flattened_data = np.array(flattened_data)
+    flattened_data = flattened_data[:, 0]
+    # flattened_data = np.random.choice(flattened_data, size=100000, replace=False)
+    print("-plotting")
+    draw_data(flattened_data, num_bins)
+    # draw_weights(data.flatten(), weights, num_bins)
     original_length = len(data)
 
     # Then look at filtered
-    keep_indices = non_outlier_indices_vertices_nclass(data, num_bins=num_bins, threshold_ratio_to_remove=0.1)
-    data = data[keep_indices]
-    weights = get_imbalanced_weight_1d(data=data, num_bins=num_bins)
-    new_length = len(data)
+    print("Filtering")
+    keep_indices = non_outlier_indices_vertices_nclass(sampled_data, num_bins=num_bins, threshold_ratio_to_remove=0.2)
+    filtered_data = [data[i] for i in keep_indices]
+    # data = data[keep_indices]
+    # weights = get_imbalanced_weight_1d(data=data, num_bins=num_bins)
+    new_length = len(filtered_data)
+    flattened_data = util.flatten_list_by_one(filtered_data)
+    flattened_data = np.array(flattened_data)
+    flattened_data = flattened_data[:, 0]
     print("Removed", original_length - new_length, "outliers = ", (original_length - new_length)/original_length * 100, "%")
-    draw_weights(data, weights)
+    print("-plotting")
+    draw_data(flattened_data, num_bins)
+    # draw_weights(data.flatten(), weights, num_bins)
 
 def debug_draw_weights():
     # Harder test case
-    file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
+    file_manager = MeshDatasetFileManager(root_dir=paths.CACHED_DATASETS_PATH + "data_th5k_norm/")
     label_names = ["thickness"]
     _, data, _ = file_manager.load_numpy_pointclouds(1, outputs_at="vertices", desired_label_names=label_names)
     # data = np.array(data[:1000]).flatten()
     # data = data.flatten()
     num_bins = 10
     weights = get_imbalanced_weight_1d(data=data.flatten(), num_bins=num_bins)
-    draw_weights(data, weights)
+    draw_weights(data, weights, num_bins)
 
 def debug_draw_weights_vertices():
     # Harder test case
-    file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
+    file_manager = MeshDatasetFileManager(root_dir=paths.CACHED_DATASETS_PATH + "data_th5k_norm/")
     label_names = ["thickness"]
     _, data, _ = file_manager.load_numpy_pointclouds(1000, outputs_at="vertices", desired_label_names=label_names)
     # data = np.array(data[:1000]).flatten()
@@ -269,7 +306,7 @@ def debug_draw_weights_vertices():
 
     num_bins = 10
     weights = get_imbalanced_weight_1d(data=data, num_bins=num_bins)
-    draw_weights(data, weights)
+    draw_weights(data, weights, num_bins)
 
 def debug_print():
     # Simple test case
@@ -285,7 +322,7 @@ def debug_print():
 
     print("---")
     # Harder test case
-    file_manager = MeshDatasetFileManager(root_dir=paths.DATA_PATH + "data_th5k_norm/")
+    file_manager = MeshDatasetFileManager(root_dir=paths.CACHED_DATASETS_PATH + "data_th5k_norm/")
     label_names = ["volume"]
     _, data, _ = file_manager.load_numpy_pointclouds(1, outputs_at="global", desired_label_names=label_names)
     # data = np.array(data[:1000]).flatten()

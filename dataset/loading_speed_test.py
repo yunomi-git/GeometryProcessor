@@ -10,7 +10,7 @@ from pathlib import Path
 import FolderManager as folders
 
 def run_1():
-    base_directory = paths.DATA_PATH + "data_mini/"
+    base_directory = paths.CACHED_DATASETS_PATH + "data_mini/"
     file_manager = ps.MeshDatasetFileManager(base_directory)
     files = file_manager.get_mesh_files()
 

@@ -6,13 +6,13 @@ from tkinter.filedialog import askopenfilename
 
 HOME_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
 MODELS_PATH = HOME_PATH + "heuristic_prediction/checkpoints/"
-DATASETS_PATH = HOME_PATH + "../Datasets/"
+RAW_DATASETS_PATH = HOME_PATH + "../Datasets/"
 
 ONSHAPE_STL_PATH = HOME_PATH + "../Datasets/Onshape_STL_Dataset/"
 # THINGIVERSE_STL_PATH = HOME_PATH + "../Thingiverse_STL_Dataset/"
 THINGIVERSE_STL_PATH = HOME_PATH + "../Datasets/Dataset_Thingiverse_10k/"
 
-DATA_PATH = HOME_PATH + "../CachedDatasets/"
+CACHED_DATASETS_PATH = HOME_PATH + "../CachedDatasets/"
 
 def get_files_multifolder(base_folder, files_per_folder):
     files = []

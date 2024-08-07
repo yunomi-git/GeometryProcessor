@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import paths
 import trimesh_util
 import trimesh
@@ -10,9 +12,13 @@ import shutil
 import dataset.FolderManager as FolderManager
 from tqdm import tqdm
 import util
+import argparse
+
+# Grab back. From Project: rsync -uPr nyu@txe1-login.mit.edu:~/Datasets/DrivAerNet/Simplified_Remesh Datasets/DrivAerNet/Simplified_Remesh/
+
 
 def get_submesh_index(mesh_name):
-    index = mesh_name.find("_")
+    index = mesh_name.rfind("_")
     if index == -1:
         return 0
     postscript = mesh_name[index + 1:] # TODO this may not be the final one
@@ -72,30 +78,41 @@ class MeshRawLabels:
         augmented_vertices = self.vertices
         if extra_vertex_label_names is not None and len(extra_vertex_label_names) > 0:
             extra_vertex_labels = self.get_vertex_labels(extra_vertex_label_names)
-            augmented_vertices = np.stack(augmented_vertices, extra_vertex_labels)
+            augmented_vertices = np.concatenate([augmented_vertices, extra_vertex_labels], axis=1)
         if extra_global_label_names is not None and len(extra_global_label_names) > 0:
             extra_global_labels = self.get_global_labels(extra_global_label_names)
-            augmented_vertices = np.stack(augmented_vertices,
-                                          np.repeat(extra_global_labels[np.newaxis, :], len(augmented_vertices)))
-
+            augmented_vertices = np.concatenate([augmented_vertices,
+                                          np.repeat(extra_global_labels[np.newaxis, :], len(augmented_vertices))], axis=1)
 
         # augmented_vertices = np.stack(vertices, extra_vertex_labels, np.repeat(extra_global_labels[np.newaxis, :], len(vertices))) # TODO
         if outputs_at == "vertices":
             labels = self.get_vertex_labels(label_names)
         else:
             labels = self.get_global_labels(label_names)
-        return GeometryReadyData(vertices=self.vertices, augmented_vertices=augmented_vertices,
-                                 faces=self.faces, labels=labels)
+        faces = self.faces
+        if faces is not None:
+            faces = faces.astype(np.int32)
+        return GeometryReadyData(vertices=self.vertices.astype(np.float32),
+                                 augmented_vertices=augmented_vertices.astype(np.float32),
+                                 faces=faces,
+                                 labels=labels.astype(np.float32))
 
 
-def calculate_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshRawLabels:
+def calculate_mesh_labels(mesh, augmentation: Augmentation=None, only_points=False, num_points=8192) -> MeshRawLabels:
     if augmentation is not None:
         mesh = trimesh_util.get_transformed_mesh_trs(mesh,
                                                      scale=augmentation.scale,
                                                      orientation=augmentation.rotation)
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-    vertices = mesh_aux.vertices
-    faces = mesh_aux.faces
+    if only_points:
+        vertices, normals = mesh_aux.sample_and_get_normals(count=num_points*2)
+        vertices = vertices[:num_points]
+        normals = normals[:num_points]
+        faces = None
+    else:
+        vertices = mesh_aux.vertices
+        faces = mesh_aux.faces
+        normals = mesh_aux.vertex_normals
     num_vertices = len(vertices)
 
     vertex_label_names = ["Thickness",
@@ -110,18 +127,31 @@ def calculate_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshRawLabel
                           "cy",
                           "cz"]
 
-    normals = mesh_aux.vertex_normals
-    _, thicknesses, num_samples = mesh_aux.calculate_thickness_at_points(points=vertices,
+
+    _, thicknesses, vertex_ids = mesh_aux.calculate_thickness_at_points(points=vertices,
                                                                          normals=normals,
-                                                                         return_num_samples=True)
-    if num_samples != num_vertices:
+                                                                         return_num_samples=False,
+                                                                         return_ray_ids=True)
+    if len(thicknesses) != num_vertices:
+        # Attempt to repair
+        print("WARNING: Repairing thicknesses")
+        thicknesses = trimesh_util.repair_missing_mesh_values(mesh, vertex_ids, values=thicknesses, max_iterations=2)
+
+    if len(thicknesses) != num_vertices:
         print("ERROR not all vertices returned thicknesses")
         return
 
-    _, gaps, num_samples = mesh_aux.calculate_gaps_at_points(points=vertices,
-                                                             normals=normals,
-                                                             return_num_samples=True)
-    if num_samples != num_vertices:
+    _, gaps, vertex_ids = mesh_aux.calculate_gaps_at_points(points=vertices,
+                                                            normals=normals,
+                                                            return_num_samples=False,
+                                                            return_ray_ids=True)
+
+    if len(gaps) != num_vertices:
+        # Attempt to repair
+        print("WARNING: Repairing gaps")
+        thicknesses = trimesh_util.repair_missing_mesh_values(mesh, vertex_ids, values=gaps, max_iterations=2)
+
+    if len(gaps) != num_vertices:
         print("ERROR not all vertices returned gaps")
         return
 
@@ -149,11 +179,14 @@ def calculate_mesh_labels(mesh, augmentation: Augmentation=None) -> MeshRawLabel
                          global_label_names=global_label_names)
 
 class MeshFolder:
-    def __init__(self, dataset_path, mesh_name):
+    def __init__(self, dataset_path, mesh_name, only_points=False, num_points=8192):
         self.dataset_path = dataset_path
         self.mesh_name = mesh_name
         self.mesh_dir_path = dataset_path + str(mesh_name) + "/"
         self.mesh_stl_path = self.mesh_dir_path + "mesh.stl"
+
+        self.only_points = only_points
+        self.num_points = num_points
 
     def initialize_folder(self, mesh: trimesh.Trimesh):
         self.mesh = mesh
@@ -177,7 +210,8 @@ class MeshFolder:
         mesh = trimesh.load(self.mesh_dir_path + "mesh.stl")
 
         # Calculate
-        mesh_labels = calculate_mesh_labels(mesh=mesh, augmentation=augmentation)
+        mesh_labels = calculate_mesh_labels(mesh=mesh, augmentation=augmentation,
+                                            only_points=self.only_points, num_points=self.num_points)
 
         if mesh_labels is None:
             return
@@ -194,7 +228,8 @@ class MeshFolder:
             json.dump(manifest, f)
         Path(aug_dir_path).mkdir(parents=True, exist_ok=True)
         np.save(aug_dir_path + "/" + "vertices", mesh_labels.vertices)
-        np.save(aug_dir_path + "/" + "faces", mesh_labels.faces)
+        if mesh_labels.faces is not None:
+            np.save(aug_dir_path + "/" + "faces", mesh_labels.faces)
         np.save(aug_dir_path + "/" + "vertex_labels", mesh_labels.vertex_labels)
         np.save(aug_dir_path + "/" + "global_labels", mesh_labels.global_labels)
 
@@ -218,7 +253,10 @@ class MeshFolder:
         vertex_label_names = manifest["vertex_label_names"]
         global_label_names = manifest["global_label_names"]
         vertices = np.load(aug_path + "vertices.npy")
-        faces = np.load(aug_path + "faces.npy")
+        if os.path.exists(aug_path + "faces.npy"):
+            faces = np.load(aug_path + "faces.npy")
+        else:
+            faces = None
         vertex_labels = np.load(aug_path + "vertex_labels.npy")
         global_labels = np.load(aug_path + "global_labels.npy")
 
@@ -277,6 +315,7 @@ class DatasetManager:
         # os.listdir(self.dataset_path)
         self.mesh_folder_names = os.listdir(self.dataset_path)
         self.mesh_folder_names.sort()
+        self.num_data = len(self.mesh_folder_names)
 
     def get_mesh_folders(self, num_meshes) -> List[MeshFolder]:#, num_meshes, augmentations: List[Augmentation]):
         # grab num_meshes random meshes
@@ -327,15 +366,17 @@ class DatasetManager:
         mesh_folders = self.get_mesh_folders(num_clouds)
         for mesh_folder in tqdm(mesh_folders):
             mesh_labels = mesh_folder.load_mesh_with_augmentations(augmentations)
+            # Ensure number of points is valid
+            if len(mesh_labels[0].vertices) < num_points:
+                print("Dataset: Mesh does not have enough points. Skipping")
+                continue
+
             for mesh_label in mesh_labels:
                 mesh_data = mesh_label.convert_to_data(outputs_at, desired_label_names,
                                                        extra_vertex_label_names=extra_vertex_label_names,
                                                        extra_global_label_names=extra_global_label_names)
 
-                # Ensure number of points is valid
-                if len(mesh_data.vertices) < num_points:
-                    print("Dataset: Mesh does not have enough points. Skipping")
-                    continue
+
 
                 if not np.isfinite(mesh_data.vertices).all() or not np.isfinite(mesh_data.faces).all():
                     print("Dataset: Nan found in mesh. skipping", mesh_folder.mesh_name, "Recommending manual deletion")
@@ -387,11 +428,33 @@ class DatasetManager:
 
         return vertices, augmented_vertices, faces, labels
 
-if __name__=="__main__":
-    base_folder = paths.DATASETS_PATH + "UnitTest/train/"
-    desired_path = paths.DATA_PATH + "unit_test/train/"
-    # desired_path = os.path.join(paths.DATA_PATH)
 
+
+#### RUN ############################
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('--task_id', default=0, required=False)
+parser.add_argument('--num_tasks', default=1, required=False)
+parser.add_argument('--input_folder', required=False)
+parser.add_argument('--output_folder', required=False)
+
+if __name__=="__main__":
+    args = parser.parse_args()
+    my_task_id = int(args.task_id)
+    num_tasks = int(args.num_tasks)
+
+    if args.input_folder is not None:
+        base_folder = paths.RAW_DATASETS_PATH + args.input_folder
+    else:
+        base_folder = paths.RAW_DATASETS_PATH + "UnitTest/train/"
+    if args.output_folder is not None:
+        desired_path = paths.CACHED_DATASETS_PATH + args.output_folder
+    else:
+        desired_path = paths.CACHED_DATASETS_PATH + "unit_test/train/"
+
+    only_points = True
+    num_points = 8192
     generate_intial_folders = True
     max_submesh_index = 4
 
@@ -402,8 +465,11 @@ if __name__=="__main__":
 
         # Grab all meshes
         origin_dataset_manager = FolderManager.DirectoryPathManager(base_path=base_folder, base_unit_is_file=True)
+        file_paths = origin_dataset_manager.file_paths[start_from:]
+        num_files = len(file_paths)
 
-        for file_path in tqdm(origin_dataset_manager.file_paths[start_from:]):
+        for i in tqdm(range(my_task_id, num_files, num_tasks)):
+            file_path = file_paths[i]
             submesh_index = get_submesh_index(file_path.file_name)
             if submesh_index > max_submesh_index:
                 continue
@@ -412,16 +478,18 @@ if __name__=="__main__":
                                                 rotation=np.array([0.0, 0.0, 0.0]))
             mesh = trimesh.load(file_path.as_absolute())
             mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-            if not mesh_aux.vertex_normals_valid():
+            if (not only_points) and (not mesh_aux.vertex_normals_valid()):
                 print("Vertex Normals invalid")
                 continue
 
-            mesh_labels = calculate_mesh_labels(mesh=mesh, augmentation=default_augmentation)
+            mesh_labels = calculate_mesh_labels(mesh=mesh, augmentation=default_augmentation,
+                                                only_points=only_points, num_points=num_points)
             if mesh_labels is None:
                 continue
 
             # save
-            mesh_folder = MeshFolder(dataset_path=desired_path, mesh_name=file_path.as_subfolder_string())
+            mesh_folder = MeshFolder(dataset_path=desired_path, mesh_name=file_path.as_subfolder_string(),
+                                     only_points=only_points, num_points=num_points)
             Path(mesh_folder.mesh_dir_path).mkdir(parents=True, exist_ok=True)
             mesh_folder.initialize_folder(mesh)
             mesh_folder.calculate_and_save_augmentation(default_augmentation, override=True)
@@ -432,12 +500,12 @@ if __name__=="__main__":
     # augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
     #                                       rotation=np.array([0.0, 0.0, 0.0])))
     # ========= Orientations ===========
-    augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
-                                          rotation=np.array([np.pi, 0.0, 0.0])))
-    augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
-                                          rotation=np.array([np.pi / 2, 0.0, 0.0])))
-    augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
-                                          rotation=np.array([-np.pi / 2, 0.0, 0.0])))
+    # augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+    #                                       rotation=np.array([np.pi, 0.0, 0.0])))
+    # augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+    #                                       rotation=np.array([np.pi / 2, 0.0, 0.0])))
+    # augmentation_list.append(Augmentation(scale=np.array([1.0, 1.0, 1.0]),
+    #                                       rotation=np.array([-np.pi / 2, 0.0, 0.0])))
     # # ========= Scalings ============
     augmentation_list.append(Augmentation(scale=np.array([2.0, 1.0, 1.0]),
                                           rotation=np.array([0.0, 0.0, 0.0])))
@@ -447,8 +515,11 @@ if __name__=="__main__":
                                           rotation=np.array([0.0, 0.0, 0.0])))
 
     mesh_folder_paths = os.listdir(desired_path)
-    for mesh_folder_path in tqdm(mesh_folder_paths):
-        mesh_folder = MeshFolder(desired_path, mesh_folder_path)
+    num_files = len(mesh_folder_paths)
+    for i in tqdm(range(my_task_id, num_files, num_tasks)):
+        mesh_folder_path = mesh_folder_paths[i]
+        mesh_folder = MeshFolder(desired_path, mesh_folder_path,
+                                 only_points=only_points, num_points=num_points)
         for augmentation in augmentation_list:
             mesh_folder.calculate_and_save_augmentation(augmentation, override=False)
 

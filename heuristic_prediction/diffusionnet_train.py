@@ -90,8 +90,8 @@ def filter_criteria(mesh, instance_data) -> bool:
 
 if __name__=="__main__":
     seed_all(args["seed"])
-    data_root_dir = paths.DATA_PATH + args["dataset_name"] + "/"
-    test_root_dir = paths.DATA_PATH + args["testset_name"] + "/"
+    data_root_dir = paths.CACHED_DATASETS_PATH + args["dataset_name"] + "/"
+    test_root_dir = paths.CACHED_DATASETS_PATH + args["testset_name"] + "/"
     op_cache_dir = data_root_dir + "op_cache"
 
     train_loader = DataLoader(DiffusionNetDataset(data_root_dir, split_size, model_args["k_eig"],

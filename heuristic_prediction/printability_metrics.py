@@ -77,7 +77,7 @@ if __name__ == "__main__":
     ## Single STL
     # mesh_path = paths.get_thingiverse_stl_path(5743)
     # mesh_path = paths.HOME_PATH + 'stls/crane.stl'
-    mesh_path = paths.DATA_PATH + "mesh/onshape_mesh202.stl"
+    mesh_path = paths.CACHED_DATASETS_PATH + "mesh/onshape_mesh202.stl"
     mesh = trimesh.load(mesh_path)
     # mesh = trimesh_util.TRIMESH_TEST_MESH
 

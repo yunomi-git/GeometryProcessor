@@ -73,10 +73,17 @@ class DiffusionNetDataset(Dataset):
                 mesh_data = mesh_label.convert_to_data(self.outputs_at, label_names,
                                                        extra_vertex_label_names=extra_vertex_label_names,
                                                        extra_global_label_names=extra_global_label_names)
+
                 verts = mesh_data.vertices
+
                 aug_verts = mesh_data.augmented_vertices
                 label = mesh_data.labels
                 faces = mesh_data.faces
+
+                if len(verts) > 1e6:
+                    continue
+                if (label > 1.0).any(): # TODO remove this
+                    continue
 
                 tensor_vert = torch.tensor(verts).float()
                 tensor_face = torch.tensor(faces)

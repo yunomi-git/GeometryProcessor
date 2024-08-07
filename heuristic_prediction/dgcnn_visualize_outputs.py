@@ -118,7 +118,7 @@ def display_meshes(model, dataset):
         comparison(model, dataset, i)
 
 if __name__=="__main__":
-    path = paths.DATA_PATH + "mcb_scale_a/"
+    path = paths.CACHED_DATASETS_PATH + "mcb_scale_a/"
 
     save_path = paths.select_file(choose_type="folder")
     arg_path = save_path + "args.json"

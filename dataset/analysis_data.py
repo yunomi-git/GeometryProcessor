@@ -20,7 +20,7 @@ if __name__ == "__main__":
     metrics = util.DictionaryList()
 
 
-    data_root_dir = paths.DATA_PATH + "data_th5k_norm/"
+    data_root_dir = paths.CACHED_DATASETS_PATH + "data_th5k_norm/"
     data_manager = MeshDatasetFileManager(data_root_dir)
     data_files =  data_manager.get_target_files(absolute=True)
     for data_file in tqdm(data_files):

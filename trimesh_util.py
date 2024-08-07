@@ -160,7 +160,7 @@ class MeshAuxilliaryInfo:
         return self.calculate_thickness_at_points(points=origins, normals=normals, return_num_samples=return_num_samples)
 
 
-    def calculate_thickness_at_points(self, points, normals, return_num_samples=True):
+    def calculate_thickness_at_points(self, points, normals, return_num_samples=True, return_ray_ids=False):
         min_bound = min(self.bound_length)
         normal_scale = 5e-5 * min_bound
         facet_offset = -normals * normal_scale  # This offset needs to be tuned based on stl dimensions
@@ -171,12 +171,14 @@ class MeshAuxilliaryInfo:
 
         distances = np.linalg.norm(hits - hit_origins, axis=1)
         wall_thicknesses = distances
+        if return_ray_ids: # TODO not all options are accounted for
+            return hit_origins, wall_thicknesses, ray_ids
         if return_num_samples:
             return hit_origins, wall_thicknesses, len(tri_ids)
         else:
             return hit_origins, wall_thicknesses
 
-    def calculate_gaps_at_points(self, points, normals, return_num_samples=True):
+    def calculate_gaps_at_points(self, points, normals, return_num_samples=True, return_ray_ids=False):
         min_bound = min(self.bound_length)
         normal_scale = 5e-2 * min_bound
         facet_offset = normals * normal_scale  # 0.1 prev
@@ -190,6 +192,8 @@ class MeshAuxilliaryInfo:
         gap_sizes = np.ones(len(points)) * NO_GAP_VALUE
         gap_sizes[ray_ids] = distances
 
+        if return_ray_ids: # TODO not all options are accounted for
+            return hit_origins, gap_sizes, ray_ids
         if return_num_samples:
             return hit_origins, gap_sizes, len(gap_sizes)
         else:
@@ -365,6 +369,70 @@ def normalize_mesh(mesh: trimesh.Trimesh, center, normalize_scale) -> trimesh.Tr
 
     mesh = get_transformed_mesh_trs(mesh, scale=normalization_scale, translation=normalization_translation)
     return mesh
+
+def mirror_surface(mesh: trimesh.Trimesh, plane, process=False):
+    mesh_aux = MeshAuxilliaryInfo(mesh)
+    faces = mesh_aux.faces
+    vertices = mesh_aux.vertices
+    # mirror vertices and faces
+    mirrored_vertices = vertices.copy()
+    if plane == "x":
+        mirrored_vertices[:, 0] *= -1
+    elif plane == "y":
+        mirrored_vertices[:, 1] *= -1
+    else:
+        mirrored_vertices[:, 2] *= -1
+    mirrored_faces = faces.copy()
+    mirrored_faces += len(vertices)
+    # new_mesh = trimesh.Trimesh(vertices=mirrored_vertices,
+    #                            faces=faces,
+    #                            merge_norm=True)
+    new_verts = np.concatenate([vertices, mirrored_vertices])
+    new_faces = np.concatenate([faces, mirrored_faces])
+    new_mesh = trimesh.Trimesh(vertices=new_verts,
+                               faces=new_faces,
+                               merge_norm=True)
+    if process:
+        new_mesh_aux = MeshAuxilliaryInfo(new_mesh)
+        return new_mesh_aux.mesh
+    else:
+        return new_mesh
+
+def repair_missing_mesh_values(mesh, vertex_ids, values, max_iterations=2, iteration=0):
+    # Samples may sometimes be missing values. If so, interpolate value using nearby values
+    mesh_aux = MeshAuxilliaryInfo(mesh)
+    num_vertices = len(mesh_aux.vertices)
+
+    # First create a list of values for all vertices. Missing values are nan
+    input_values_padded = np.empty(num_vertices)
+    input_values_padded[:] = np.nan
+    input_values_padded[vertex_ids] = values
+
+    # To return
+    repaired_values = np.zeros(num_vertices)
+
+    # Grab values of vertices connected to missing vertices
+    vertex_connection_ids = mesh.vertex_neighbors # list
+    missing_ids = np.delete(np.arange(num_vertices), vertex_ids).astype(np.int32)
+    missing_connection_ids = [vertex_connection_ids[i] for i in missing_ids] # list
+    # Construct the missing values
+    missing_values = np.empty(len(missing_ids))
+    for i in range(len(missing_ids)):
+        connections_ids = missing_connection_ids[i]
+        connection_values = input_values_padded[connections_ids]
+        connection_values = connection_values[~np.isnan(connection_values)]
+        missing_values[i] = np.mean(connection_values)
+
+    # Average and set
+    repaired_values[vertex_ids] = values
+    repaired_values[missing_ids] = missing_values
+
+    if np.isnan(repaired_values).any() and iteration < max_iterations:
+        valid_indices = np.arange(num_vertices)[~np.isnan(repaired_values)]
+        repaired_values = repair_missing_mesh_values(mesh, vertex_ids=valid_indices,
+                                                     values=repaired_values[valid_indices],
+                                                     max_iterations=max_iterations, iteration=iteration+1)
+    return repaired_values
 
 
 ##### Visualization

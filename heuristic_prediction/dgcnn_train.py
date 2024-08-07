@@ -12,7 +12,8 @@ torch.cuda.empty_cache()
 
 label_names = [
     # "surface_area"
-    "thickness",
+    # "thickness",
+    "Thickness"
 ]
 
 input_append_label_names = [
@@ -44,8 +45,8 @@ args = {
     "seed": 1,
 
     # Dataset Param
-    "data_fraction": 1.0,
-    "data_fraction_test": 1.0,
+    "data_fraction": 0.3,
+    "data_fraction_test": 0.3,
     "do_test": False,
     "workers": 24,
 
@@ -74,8 +75,8 @@ args.update(model_args)
 if __name__ == "__main__":
     ### Data ###
     seed_all(args["seed"])
-    data_root_dir = paths.DATA_PATH + args["dataset_name"] + "/"
-    test_root_dir = paths.DATA_PATH + args["testset_name"] + "/"
+    data_root_dir = paths.CACHED_DATASETS_PATH + args["dataset_name"] + "/"
+    test_root_dir = paths.CACHED_DATASETS_PATH + args["testset_name"] + "/"
     train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                 append_label_names=args['input_append_label_names'],
                                                 partition='train',
@@ -87,6 +88,7 @@ if __name__ == "__main__":
                                                 remove_outlier_ratio=args["remove_outlier_ratio"]),
                               num_workers=args["workers"],
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
+    test_loader = None
     if args["do_test"]:
         test_loader = DataLoader(PointCloudDataset(test_root_dir, args['num_points'], label_names=label_names,
                                                    append_label_names=args['input_append_label_names'],
@@ -129,4 +131,4 @@ if __name__ == "__main__":
         include_faces=False
     )
 
-    regression_manager.train(args, do_test=args["do_test"], plot_every_n_epoch=5, outputs_at=args["outputs_at"])
+    regression_manager.train(args, do_test=args["do_test"], plot_every_n_epoch=5)

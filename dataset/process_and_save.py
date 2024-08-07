@@ -458,7 +458,7 @@ def save_generated_dataset_as_numpy(file_manager,
 if __name__ == "__main__":
     # quick_edit(paths.HOME_PATH + "data_augmentations/")
     # Generation Parameters
-    outputs_save_path = paths.DATA_PATH + "th5k_fx/"
+    outputs_save_path = paths.CACHED_DATASETS_PATH + "th5k_fx/"
 
     mode = "convert_numpy" # generate_initial, add_augmentations, both, convert_numpy
     normalize_center = True

@@ -16,7 +16,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmResta
 device = torch.device('cuda')
 dtype = torch.float32
 
-cache_operators = False
+cache_operators = True
 
 torch.cuda.empty_cache()
 
@@ -69,7 +69,7 @@ model_args = {
     "dropout": True,
     "with_gradient_features": True,
     "with_gradient_rotations": True,
-    "diffusion_method": 'spectral',
+    "diffusion_method": 'spectral', #"implicit_dense", #'spectral',
     "data_parallel": False
     # "device": device
 }
@@ -86,10 +86,10 @@ args = {
     "outputs_at": "vertices",
     "seed": 2,
     "augmentations": "none",
-    "remove_outlier_ratio": 0.0,
+    "remove_outlier_ratio": 0.2,
 
     # Dataset Param
-    "data_fraction": 0.5,
+    "data_fraction": 1.0,
     "data_fraction_test": 0.1,
     "do_test": False,
     "workers": 24,
@@ -114,9 +114,9 @@ args.update(model_args)
 
 if __name__=="__main__":
     seed_all(args["seed"])
-    data_root_dir = paths.DATA_PATH + args["dataset_name"] + "train/"
-    test_root_dir = paths.DATA_PATH + args["testset_name"] + "test/"
-    op_cache_dir = paths.DATA_PATH + args["dataset_name"] + "op_cache/"
+    data_root_dir = paths.CACHED_DATASETS_PATH + args["dataset_name"] + "train/"
+    test_root_dir = paths.CACHED_DATASETS_PATH + args["testset_name"] + "test/"
+    op_cache_dir = paths.CACHED_DATASETS_PATH + args["dataset_name"] + "op_cache/"
     print(op_cache_dir)
 
     train_loader = DataLoader(DiffusionNetDataset(data_root_dir, model_args["k_eig"],

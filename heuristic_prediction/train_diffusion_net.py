@@ -36,7 +36,7 @@ base_path = os.path.dirname(__file__)
 
 
 # dataset_path = paths.TRAINING_DATA_PATH
-dataset_path = paths.DATA_PATH + "data_th5k_norm/"
+dataset_path = paths.CACHED_DATASETS_PATH + "data_th5k_norm/"
 op_cache_dir = dataset_path + "op_cache"
 # === Load datasets
 

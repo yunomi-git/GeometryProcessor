@@ -43,7 +43,7 @@ def plot_all(c, r, dataset):
         pl.show()
 
 if __name__=="__main__":
-    path = paths.DATA_PATH + "mcb_scale_a/"
+    path = paths.CACHED_DATASETS_PATH + "mcb_scale_a/"
     # file_manager = MeshDatasetFileManager(path)
     dataset = PointCloudDataset(path, args['num_points'], label_names=label_names,
                       partition='train',

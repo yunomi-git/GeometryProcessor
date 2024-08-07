@@ -72,7 +72,7 @@ def plot_all(c, r, dataset):
         pl.show()
 
 if __name__=="__main__":
-    path = paths.DATA_PATH + "th10k_norm/train/"
+    path = paths.CACHED_DATASETS_PATH + "th10k_norm/train/"
     dataset_manager = pas2.DatasetManager(path)
     mesh_folders = dataset_manager.get_mesh_folders(10)
     label_names = ["Thickness"]

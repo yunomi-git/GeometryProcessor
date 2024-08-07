@@ -121,7 +121,7 @@ class CentroidDataset(Dataset):
 
 if __name__=="__main__":
     ### Data ###
-    data_root_dir = paths.DATA_PATH + "data_th5k_aug/"  # "data_augmentations/" #
+    data_root_dir = paths.CACHED_DATASETS_PATH + "data_th5k_aug/"  # "data_augmentations/" #
     train_loader = DataLoader(CentroidDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                 partition='train',
                                                 data_fraction=args["data_fraction"],
