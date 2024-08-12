@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 
+# Outdated. Prefer process_and_save_temp.py
+
 class MeshDatasetFileManager:
     def __init__(self, root_dir):
         self.root_dir = root_dir

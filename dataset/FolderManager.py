@@ -5,7 +5,7 @@ import os
 from typing import List
 
 import paths
-
+from tqdm import tqdm
 
 class FilePath:
     def __init__(self, base_path, subfolder_path, file_name, is_folder):
@@ -41,13 +41,22 @@ class FilePath:
             return self.subfolder_path + self.file_name
 
 class DirectoryPathManager:
-    def __init__(self, base_path, base_unit_is_file, max_files_per_subfolder=-1):
+    def __init__(self, base_path, base_unit_is_file, max_files_per_subfolder=-1, recursive=True):
         self.base_path = base_path
+        self.recursive = recursive
+        self.base_unit_is_file = base_unit_is_file
+
+        max_depth = -1
+        if not recursive:
+            max_depth = 0
+
         if base_unit_is_file:
             self.file_paths = get_all_files_in_directory(base_path,
-                                                         max_files_per_subfolder=max_files_per_subfolder)
+                                                         max_files_per_subfolder=max_files_per_subfolder,
+                                                         max_depth=max_depth)
         else:
-            self.file_paths = get_all_final_folders_in_directory(base_path)
+            self.file_paths = get_all_final_folders_in_directory(base_path, max_depth=max_depth)
+
 
     def get_files_absolute(self) -> List[str]:
         return [file.as_absolute() for file in self.file_paths]
@@ -68,7 +77,7 @@ def folder_contains_no_folders(folder_path_absolute):
             return False
     return True
 
-def get_all_final_folders_in_directory(base_path, subfolder_path=""):
+def get_all_final_folders_in_directory(base_path, subfolder_path="", max_depth=-1, depth=0):
     base_contents = os.listdir(base_path + subfolder_path)
     base_contents.sort()
 
@@ -76,14 +85,17 @@ def get_all_final_folders_in_directory(base_path, subfolder_path=""):
     for content in base_contents:
         if not os.path.isdir(base_path + subfolder_path + content):
             continue
-        if folder_contains_no_folders(base_path + subfolder_path + content + "/"):
+        if folder_contains_no_folders(base_path + subfolder_path + content + "/") or (max_depth != -1 and depth == max_depth):
             folder_paths.append(FilePath(base_path, subfolder_path, content, is_folder=True))
         else:
-            folder_paths.extend(get_all_final_folders_in_directory(base_path,
-                                                          subfolder_path=subfolder_path + content + "/"))
+            if max_depth != -1 and depth < max_depth:
+                folder_paths.extend(get_all_final_folders_in_directory(base_path,
+                                                                       subfolder_path=subfolder_path + content + "/",
+                                                                       max_depth=max_depth,
+                                                                       depth=depth+1))
     return folder_paths
 
-def get_all_files_in_directory(base_path, subfolder_path="", max_files_per_subfolder=-1) -> List[FilePath]:
+def get_all_files_in_directory(base_path, subfolder_path="", max_files_per_subfolder=-1, max_depth=-1, depth=0) -> List[FilePath]:
     base_contents = os.listdir(base_path + subfolder_path)
     base_contents.sort()
     if max_files_per_subfolder > 0:
@@ -92,13 +104,15 @@ def get_all_files_in_directory(base_path, subfolder_path="", max_files_per_subfo
             max_files = max_files_per_subfolder
         base_contents = base_contents[:max_files]
     files_paths = []
-    for content in base_contents:
+    for content in tqdm(base_contents):
         if os.path.isfile(base_path + subfolder_path + content):
             files_paths.append(FilePath(base_path, subfolder_path, content, is_folder=False))
-        else:
+        elif max_depth != -1 and depth < max_depth:
             files_paths.extend(get_all_files_in_directory(base_path,
                                                           subfolder_path=subfolder_path + content + "/",
-                                                          max_files_per_subfolder=max_files_per_subfolder))
+                                                          max_files_per_subfolder=max_files_per_subfolder,
+                                                          max_depth=max_depth,
+                                                          depth=depth+1))
     return files_paths
 
 

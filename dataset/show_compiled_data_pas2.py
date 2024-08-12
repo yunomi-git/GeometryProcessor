@@ -7,7 +7,7 @@
 import dataset.process_and_save_temp as pas2
 import paths
 from dataset.process_and_save import MeshDatasetFileManager
-from heuristic_prediction.pointcloud_dataloader import PointCloudDataset
+# from heuristic_prediction.pointcloud_dataloader import PointCloudDataset
 import trimesh_util
 import pyvista as pv
 import numpy as np
@@ -27,15 +27,15 @@ def plot_augmentations(mesh_folder: pas2.MeshFolder, vertex_label_name, show_edg
     mesh_labels = mesh_folder.load_all_augmentations()
     nr = 2
     nc = int(np.ceil(len(mesh_labels) / nr))
-    print(len(mesh_labels))
-    print(nc)
+    # print(len(mesh_labels))
+    # print(nc)
     pl = pv.Plotter(shape=(nr, nc))
 
     for i in range(len(mesh_labels)):
         mesh_label = mesh_labels[i]
         mesh = convert_to_pv_mesh(mesh_label.vertices, mesh_label.faces)
         labels = mesh_label.get_vertex_labels(vertex_label_name)
-        print(i // nc, i % nc)
+        # print(i // nc, i % nc)
         pl.subplot(i // nc, i % nc)
         pl.add_mesh(mesh, show_edges=show_edge, scalars=labels, show_scalar_bar=True)
         # actor.mapper.lookup_table.cmap = 'jet'
@@ -72,7 +72,7 @@ def plot_all(c, r, dataset):
         pl.show()
 
 if __name__=="__main__":
-    path = paths.CACHED_DATASETS_PATH + "th10k_norm/train/"
+    path = paths.CACHED_DATASETS_PATH + "DrivAerNet/train2/"
     dataset_manager = pas2.DatasetManager(path)
     mesh_folders = dataset_manager.get_mesh_folders(10)
     label_names = ["Thickness"]

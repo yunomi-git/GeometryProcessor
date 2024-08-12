@@ -339,7 +339,7 @@ def get_largest_submesh(mesh: trimesh.Trimesh):
         mesh = largest_submesh
     return mesh
 
-def get_valid_submeshes(mesh: trimesh.Trimesh):
+def get_valid_submeshes(mesh: trimesh.Trimesh, sorted=True):
     # Ordered by volume
     valid_meshes = []
     volumes = []
@@ -351,8 +351,10 @@ def get_valid_submeshes(mesh: trimesh.Trimesh):
             volumes.append(mesh_aux.volume)
 
     # Sort
-    volumes = np.array(volumes)
-    valid_meshes = valid_meshes[np.argsort(volumes)]
+    if sorted:
+        volumes = np.array(volumes)
+        sorted_ind = np.argsort(volumes).astype(np.int32)
+        valid_meshes = [valid_meshes[i] for i in sorted_ind]
     return valid_meshes
 
 def normalize_mesh(mesh: trimesh.Trimesh, center, normalize_scale) -> trimesh.Trimesh:

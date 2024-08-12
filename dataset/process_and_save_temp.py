@@ -13,6 +13,7 @@ import dataset.FolderManager as FolderManager
 from tqdm import tqdm
 import util
 import argparse
+from dataset.create_splits_data import load_mesh_folders_from_split_file, create_splits_file
 
 # Grab back. From Project: rsync -uPr nyu@txe1-login.mit.edu:~/Datasets/DrivAerNet/Simplified_Remesh Datasets/DrivAerNet/Simplified_Remesh/
 
@@ -249,7 +250,11 @@ class MeshFolder:
             aug_path = self.mesh_dir_path + augmentation + "/"
 
         with open(aug_path + "/" + "manifest.json", 'r') as f:
-            manifest = json.load(f)
+            try:
+                manifest = json.load(f)
+            except:
+                print(self.mesh_name)
+                return
         vertex_label_names = manifest["vertex_label_names"]
         global_label_names = manifest["global_label_names"]
         vertices = np.load(aug_path + "vertices.npy")
@@ -261,9 +266,13 @@ class MeshFolder:
         global_labels = np.load(aug_path + "global_labels.npy")
 
         # TODO: Meshes were saved incorrectly the first time. need to redo
-        return MeshRawLabels(vertices=vertices, faces=faces, vertex_labels=vertex_labels.T,
-                             global_labels=global_labels[0], vertex_label_names=vertex_label_names,
+        return MeshRawLabels(vertices=vertices, faces=faces, vertex_labels=vertex_labels,
+                             global_labels=global_labels, vertex_label_names=vertex_label_names,
                              global_label_names=global_label_names)
+
+        # return MeshRawLabels(vertices=vertices, faces=faces, vertex_labels=vertex_labels.T,
+        #                      global_labels=global_labels[0], vertex_label_names=vertex_label_names,
+        #                      global_label_names=global_label_names)
 
     def load_mesh_with_augmentations(self, augmentations: List[Augmentation] | List[str]) -> List[MeshRawLabels]:
         if augmentations == "none" or augmentations is None:
@@ -309,12 +318,15 @@ class GeometryReadyData:
         return self.faces is None
 
 class DatasetManager:
-    def __init__(self, dataset_path):
+    def __init__(self, dataset_path, split_file=None, partition=None):
+        # if split file is being used, partition must be set to "test" or "train"
         self.dataset_path = dataset_path
         # get mesh folders
-        # os.listdir(self.dataset_path)
-        self.mesh_folder_names = os.listdir(self.dataset_path)
-        self.mesh_folder_names.sort()
+        if split_file is None:
+            self.mesh_folder_names = os.listdir(self.dataset_path)
+            self.mesh_folder_names.sort()
+        else:
+            self.mesh_folder_names = load_mesh_folders_from_split_file(split_file, partition)
         self.num_data = len(self.mesh_folder_names)
 
     def get_mesh_folders(self, num_meshes) -> List[MeshFolder]:#, num_meshes, augmentations: List[Augmentation]):
@@ -354,7 +366,7 @@ class DatasetManager:
 
                 mesh_data_list.append(mesh_data)
         return mesh_data_list
-    def load_pointcloud_data(self, num_clouds, num_points, augmentations: List[Augmentation], outputs_at="global",
+    def load_pointcloud_data(self, num_clouds, num_points, augmentations: List[Augmentation] | str, outputs_at="global",
                                desired_label_names=None, extra_vertex_label_names=None, extra_global_label_names=None):
         cloud_data_list = []
 
@@ -368,7 +380,7 @@ class DatasetManager:
             mesh_labels = mesh_folder.load_mesh_with_augmentations(augmentations)
             # Ensure number of points is valid
             if len(mesh_labels[0].vertices) < num_points:
-                print("Dataset: Mesh does not have enough points. Skipping")
+                # print("Dataset: Mesh " + mesh_folder.mesh_name + " does not have enough points " + str(len(mesh_labels[0].vertices)) + " < " + str(num_points) + ". Skipping")
                 continue
 
             for mesh_label in mesh_labels:
@@ -398,7 +410,7 @@ class DatasetManager:
 
         return cloud_data_list
 
-    def load_numpy_pointcloud(self, num_clouds, num_points, augmentations: List[Augmentation], outputs_at="global",
+    def load_numpy_pointcloud(self, num_clouds, num_points, augmentations: List[Augmentation] | str, outputs_at="global",
                                desired_label_names=None, extra_vertex_label_names=None, extra_global_label_names=None):
         cloud_data_list = self.load_pointcloud_data(num_clouds, num_points, augmentations, outputs_at,
                                desired_label_names, extra_vertex_label_names, extra_global_label_names)
@@ -453,10 +465,10 @@ if __name__=="__main__":
     else:
         desired_path = paths.CACHED_DATASETS_PATH + "unit_test/train/"
 
-    only_points = True
+    only_points = False
     num_points = 8192
     generate_intial_folders = True
-    max_submesh_index = 4
+    max_submesh_index = 10
 
     if generate_intial_folders:
         start_from = 0
@@ -478,9 +490,9 @@ if __name__=="__main__":
                                                 rotation=np.array([0.0, 0.0, 0.0]))
             mesh = trimesh.load(file_path.as_absolute())
             mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-            if (not only_points) and (not mesh_aux.vertex_normals_valid()):
-                print("Vertex Normals invalid")
-                continue
+            # if (not only_points) and (not mesh_aux.vertex_normals_valid()):
+            #     print("Vertex Normals invalid")
+            #     continue
 
             mesh_labels = calculate_mesh_labels(mesh=mesh, augmentation=default_augmentation,
                                                 only_points=only_points, num_points=num_points)
@@ -493,6 +505,9 @@ if __name__=="__main__":
             Path(mesh_folder.mesh_dir_path).mkdir(parents=True, exist_ok=True)
             mesh_folder.initialize_folder(mesh)
             mesh_folder.calculate_and_save_augmentation(default_augmentation, override=True)
+
+        # Now create the splits file
+        create_splits_file(desired_path)
 
     # Now add augmentations
     augmentation_list = []

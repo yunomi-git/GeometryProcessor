@@ -37,7 +37,7 @@ model_args = {
 experiment_name = succinct_label_save_name(label_names)
 
 args = {
-    "dataset_name": "th10k_norm/train",
+    "dataset_name": "DaVinci/train",
     "testset_name": "mcb_test",
     "exp_name": experiment_name,
     "label_names": label_names,
@@ -48,17 +48,17 @@ args = {
     "data_fraction": 0.3,
     "data_fraction_test": 0.3,
     "do_test": False,
-    "workers": 24,
+    "workers": 23,
 
     "sampling_method": "even",
     "imbalanced_weighting_bins": 1, #1 means no weighting
     "normalize_outputs": False,
-    "remove_outlier_ratio": 0.1, # 0 means remove no outliers
+    "remove_outlier_ratio": 0.0, # 0 means remove no outliers
 
     # Opt Param
-    "batch_size": 16,
+    "batch_size": 8,
     "test_batch_size": 32,
-    "grad_acc_steps": 2,
+    "grad_acc_steps": 4,
     "epochs": 100,
     "lr": 1e-3,
     "weight_decay": 1e-5,

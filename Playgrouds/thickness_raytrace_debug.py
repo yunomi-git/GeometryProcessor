@@ -176,7 +176,7 @@ if __name__=="__main__":
     # mesh_path = paths.get_thingiverse_stl_path(92)
     # mesh = trimesh.load(mesh_path)
     # check_ray_for_mesh(mesh)
-    folder_manager = fm.DirectoryPathManager(base_path=paths.DATASETS_PATH + "Thingi10k_Remesh_Normalized/" , base_unit_is_file=True)
+    folder_manager = fm.DirectoryPathManager(base_path=paths.RAW_DATASETS_PATH + "Thingi10k_Remesh_Normalized/", base_unit_is_file=True)
     files = folder_manager.get_files_absolute()[:50]
 
     for file_path in files:

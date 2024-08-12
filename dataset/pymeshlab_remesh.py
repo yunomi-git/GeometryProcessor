@@ -12,31 +12,51 @@ from dataset.FolderManager import DirectoryPathManager
 time = util.Stopwatch()
 
 def default_remesh(file_path, out_path=None, show=False):
-    # try:
     ms = pymeshlab.MeshSet()
     ms.load_new_mesh(file_path)
-    # except Exception as e:
-    #     print("error loading meshlab", file_path, e)
-    #     return
-    # try:
-    # time.start()
+
     ms.meshing_surface_subdivision_midpoint(iterations=3)
     # ms.meshing_decimation_clustering(threshold=pymeshlab.PercentageValue(0.1))
     ms.meshing_isotropic_explicit_remeshing(iterations=5)
-    # ms.meshing_isotropic_explicit_remeshing(iterations=6,
-    #                                         targetlen=pymeshlab.PercentageValue(1),
-    #                                         splitflag=True,
-    #                                         collapseflag=True,
-    #                                         reprojectflag=True)
-    # time.print_time()
-    # except Exception as e:
-    #     print("error remeshing ", file_path, "| ", e)
-    #     return
+
 
     if out_path is not None:
         ms.save_current_mesh(out_path, save_face_color=False)
     if show:
         ms.show_polyscope()
+
+def default_remesh_with_checks(file_path, out_path=None):
+    try:
+        mesh = trimesh.load(file_path)
+        mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
+    except:
+        print("error loading trimesh", file_path)
+        return -1
+
+    if not mesh_aux.is_valid:
+        print("not valid: ", file_path)
+        return -1
+
+    if not mesh.is_watertight:
+        print("not watertight: ", file_path)
+        return -1
+
+    try:
+        ms = pymeshlab.MeshSet()
+        ms.load_new_mesh(file_path)
+    except:
+        print("error loading meshlab", file_path)
+        return -1
+
+    try:
+        ms.meshing_surface_subdivision_midpoint(iterations=3)
+        ms.meshing_isotropic_explicit_remeshing(iterations=5)
+
+        ms.save_current_mesh(out_path, save_face_color=False)
+        return 0
+    except Exception as e:
+        print("error remeshing ", file_path, "| ", e)
+        return -1
 
 
 
