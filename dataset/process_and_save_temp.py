@@ -318,15 +318,15 @@ class GeometryReadyData:
         return self.faces is None
 
 class DatasetManager:
-    def __init__(self, dataset_path, split_file=None, partition=None):
-        # if split file is being used, partition must be set to "test" or "train"
+    def __init__(self, dataset_path, partition=None):
+        # If partition is set to "train" or "test", assumes that a split file has already been created
         self.dataset_path = dataset_path
         # get mesh folders
-        if split_file is None:
+        if partition is None:
             self.mesh_folder_names = os.listdir(self.dataset_path)
             self.mesh_folder_names.sort()
         else:
-            self.mesh_folder_names = load_mesh_folders_from_split_file(split_file, partition)
+            self.mesh_folder_names = load_mesh_folders_from_split_file(dataset_path, partition)
         self.num_data = len(self.mesh_folder_names)
 
     def get_mesh_folders(self, num_meshes) -> List[MeshFolder]:#, num_meshes, augmentations: List[Augmentation]):

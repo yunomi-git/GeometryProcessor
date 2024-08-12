@@ -54,8 +54,8 @@ def translate_pointcloud(pointcloud):
 
 class PointCloudDataset(Dataset):
     def __init__(self, data_root_dir, num_points, label_names, partition='train', outputs_at="global",
-                 data_fraction=1.0, sampling_method="mixed", append_label_names=None, augmentations="all",
-                 imbalance_weight_num_bins=1, normalize_outputs=False, remove_outlier_ratio=0.05):
+                 data_fraction=1.0, append_label_names=None, augmentations="all",
+                 imbalance_weight_num_bins=1, remove_outlier_ratio=0.05):
         self.outputs_at = outputs_at
         timer = util.Stopwatch()
         timer.start()
@@ -67,7 +67,7 @@ class PointCloudDataset(Dataset):
         #                                                         data_fraction=data_fraction,
         #                                                         sampling_method=sampling_method,
         #                                                         outputs_at=outputs_at)
-        dataset_manager = DatasetManager(dataset_path=data_root_dir)
+        dataset_manager = DatasetManager(dataset_path=data_root_dir, partition=partition)
         _, self.point_clouds, self.label = dataset_manager.load_numpy_pointcloud(
             num_clouds=int(data_fraction * dataset_manager.num_data),
             num_points=2 * num_points,
@@ -78,12 +78,6 @@ class PointCloudDataset(Dataset):
             extra_global_label_names=None)
 
         print("Num data loaded: " + str(len(self.point_clouds)))
-
-        if normalize_outputs:
-            print("Normalizing Outputs")
-            length = np.max(self.label, axis=0) - np.min(self.label, axis=0)
-            center = np.mean(self.label, axis=0)
-            self.label = (self.label - center) / length
 
         if remove_outlier_ratio > 0.0:
             if outputs_at == "global":

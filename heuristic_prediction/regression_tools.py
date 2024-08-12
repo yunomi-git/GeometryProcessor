@@ -74,7 +74,11 @@ class RegressionTools:
         self.opt.zero_grad()
         train_pred = []
         train_true = []
-        for batch_idx, (data, label, weight) in enumerate(tqdm(self.train_loader)):
+        if training:
+            data_loader = self.train_loader
+        else:
+            data_loader = self.test_loader
+        for batch_idx, (data, label, weight) in enumerate(tqdm(data_loader)):
             data, label = data.to(self.device), label.to(self.device)
             weight = weight.to(self.device)
             weight = torch.sqrt(weight)
@@ -91,7 +95,6 @@ class RegressionTools:
                     self.opt.zero_grad()
             else:
                 loss = self.loss_criterion(weight * preds, weight * label)
-                loss.backward()
 
                 if self.clip_parameters:
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
@@ -127,7 +130,11 @@ class RegressionTools:
         self.opt.zero_grad()
         train_pred = []
         train_true = []
-        for batch_idx, (vertices, faces, label) in enumerate(tqdm(self.train_loader)):
+        if training:
+            data_loader = self.train_loader
+        else:
+            data_loader = self.test_loader
+        for batch_idx, (vertices, faces, label) in enumerate(tqdm(data_loader)):
             vertices, faces, label = vertices.to(self.device), faces.to(self.device), label.to(self.device)
             # weight = weight.to(self.device)
             # weight = torch.sqrt(weight)
@@ -152,7 +159,7 @@ class RegressionTools:
             else:
                 loss = self.loss_criterion(weight * preds, weight * label)
                 # TODO why is the following getting calculated?
-                loss.backward()
+                # loss.backward()
 
                 if self.clip_parameters:
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
@@ -314,7 +321,7 @@ class RegressionTools:
             plt.plot(train_res_history[:, i], label='train')
 
             if res_test_history is not None:
-                test_res_history = np.array(res_train_history)
+                test_res_history = np.array(res_test_history)
                 plt.plot(test_res_history[:, i], label='test')
 
             plt.ylabel(labels[i] + " Train R2")
@@ -331,6 +338,7 @@ class RegressionTools:
 
         plt.ylabel("Loss")
         plt.xlabel("Epoch")
+        plt.legend()
         plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
         print("Time to save figures: ", timer.get_time())
 

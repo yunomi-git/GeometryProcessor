@@ -1,7 +1,7 @@
 import paths
 import sklearn.model_selection
 import json
-import FolderManager
+from dataset.process_and_save_temp import FolderManager
 
 # Idea: create a list of train / test splits for a given folder
 # Name: same as folder name. folder_splits
@@ -23,26 +23,40 @@ def create_splits_file(dataset_path):
 
     all_files = director_manager.get_files_relative(extension=False)
     # all_files = paths.get_files_in_folders(base_folder="data/cad_vec/")
-    train, test = sklearn.model_selection.train_test_split(all_files, test_size=0.15)
-    train.sort()
+    train, test = sklearn.model_selection.train_test_split(all_files, test_size=0.2)
+    train_train, train_val = sklearn.model_selection.train_test_split(train, test_size=0.2)
+    train_train.sort()
+    train_val.sort()
     test.sort()
 
-    save_path = root_path + last_folder[:-1] + "_splits.json"
+    print("train", len(train_train))
+    print("val", len(train_val))
+    print("test", len(test))
+
+    save_path = get_split_file_name_for_dataset(dataset_path)
     with open(save_path, 'w') as f:
         json.dump({
             "relative_path": last_folder,
-            "train": train,
+            "train": train_train,
+            "validation": train_val,
             "test": test
         }, f)
 
-def load_mesh_folders_from_split_file(split_file, partition):
+def load_mesh_folders_from_split_file(dataset_path, partition):
+    split_file = get_split_file_name_for_dataset(dataset_path)
     with open(split_file, "r") as f:
         splits = json.load(f)
         return splits[partition]
 
+def get_split_file_name_for_dataset(dataset_path):
+    last_folder, root_path = get_last_folder_in_path(dataset_path)
+    save_path = root_path + last_folder[:-1] + "_splits.json"
+    return save_path
+
+
 if __name__=="__main__":
     # Store in upper file
-    dataset_path = paths.CACHED_DATASETS_PATH + "DrivAerNet/train/"
+    dataset_path = paths.CACHED_DATASETS_PATH + "DaVinci/train/"
     # relative_data_path = "train/"
 
     create_splits_file(dataset_path)

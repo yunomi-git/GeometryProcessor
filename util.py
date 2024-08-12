@@ -72,13 +72,13 @@ def get_indices_a_in_b(a, b):
 
 def get_permutation_for_list(list, n):
     assert n <= len(list)
-    indices = np.arange(n)
-    return np.random.permutation(indices)
+    indices = np.arange(len(list))
+    return np.random.permutation(indices)[:n]
 
 def get_random_n_in_list(list, n):
     assert n <= len(list)
-    indices = np.arange(n)
-    permutation = np.random.permutation(indices)
+    indices = np.arange(len(list))
+    permutation = np.random.permutation(indices)[:n]
     output = [list[i] for i in permutation]
     return output
 

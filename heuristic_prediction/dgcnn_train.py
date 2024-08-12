@@ -37,22 +37,19 @@ model_args = {
 experiment_name = succinct_label_save_name(label_names)
 
 args = {
-    "dataset_name": "DaVinci/train",
-    "testset_name": "mcb_test",
+    "dataset_name": "DrivAerNet/train",
+    # "testset_name": "mcb_test",
     "exp_name": experiment_name,
     "label_names": label_names,
     "input_append_label_names": input_append_label_names,
     "seed": 1,
 
     # Dataset Param
-    "data_fraction": 0.3,
-    "data_fraction_test": 0.3,
-    "do_test": False,
+    "data_fraction": 1.0,
+    "do_test": True,
     "workers": 23,
 
-    "sampling_method": "even",
     "imbalanced_weighting_bins": 1, #1 means no weighting
-    "normalize_outputs": False,
     "remove_outlier_ratio": 0.0, # 0 means remove no outliers
 
     # Opt Param
@@ -76,13 +73,11 @@ if __name__ == "__main__":
     ### Data ###
     seed_all(args["seed"])
     data_root_dir = paths.CACHED_DATASETS_PATH + args["dataset_name"] + "/"
-    test_root_dir = paths.CACHED_DATASETS_PATH + args["testset_name"] + "/"
+    # test_root_dir = paths.CACHED_DATASETS_PATH + args["testset_name"] + "/"
     train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                 append_label_names=args['input_append_label_names'],
                                                 partition='train',
                                                 data_fraction=args["data_fraction"],
-                                                normalize_outputs=args["normalize_outputs"],
-                                                sampling_method=args["sampling_method"],
                                                 outputs_at=args["outputs_at"],
                                                 imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
                                                 remove_outlier_ratio=args["remove_outlier_ratio"]),
@@ -90,12 +85,10 @@ if __name__ == "__main__":
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = None
     if args["do_test"]:
-        test_loader = DataLoader(PointCloudDataset(test_root_dir, args['num_points'], label_names=label_names,
+        test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                    append_label_names=args['input_append_label_names'],
-                                                   partition='test',
-                                                   data_fraction=args["data_fraction_test"],
-                                                   normalize_outputs=args["normalize_outputs"],
-                                                   sampling_method=args["sampling_method"],
+                                                   partition='validation',
+                                                   data_fraction=args["data_fraction"],
                                                    outputs_at=args["outputs_at"],
                                                    imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
                                                    remove_outlier_ratio=args["remove_outlier_ratio"]),

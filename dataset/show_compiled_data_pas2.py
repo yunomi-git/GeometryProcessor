@@ -46,8 +46,8 @@ def plot_augmentations(mesh_folder: pas2.MeshFolder, vertex_label_name, show_edg
 
 
 
-def plot_all(c, r, dataset):
-    num_data = len(dataset)
+def plot_all_clouds(c, r, vertices, labels=None):
+    num_data = len(vertices)
     num_visualized = c * r
     num_iterations = int(np.ceil(num_data / num_visualized))
 
@@ -55,11 +55,13 @@ def plot_all(c, r, dataset):
         pl = pv.Plotter(shape=(r, c))
         for ri in range(r):
             for ci in range(c):
-                cloud, _, _ = dataset[i * r * c + ri * c + ci]
+                cloud = vertices[i * r * c + ri * c + ci]
+                cloud_labels = labels[i * r * c + ri * c + ci]
+
                 pl.subplot(ri, ci)
                 actor = pl.add_points(
                     points=cloud,
-                    # scalars=curvature,
+                    scalars=cloud_labels,
                     render_points_as_spheres=True,
                     point_size=5,
                     show_scalar_bar=True,
@@ -71,29 +73,78 @@ def plot_all(c, r, dataset):
         pl.link_views()
         pl.show()
 
+def plot_all_meshes(c, r, vertices, faces, labels):
+    num_data = len(vertices)
+    num_visualized = c * r
+    num_iterations = int(np.ceil(num_data / num_visualized))
+
+    for i in range(num_iterations):
+        pl = pv.Plotter(shape=(r, c))
+        for ri in range(r):
+            for ci in range(c):
+                idx = i * r * c + ri * c + ci
+                if idx >= num_data:
+                    break
+                mesh_vertices = vertices[idx]
+                mesh_faces = faces[idx]
+                mesh_labels = labels[idx]
+                mesh = convert_to_pv_mesh(mesh_vertices, mesh_faces)
+                pl.subplot(ri, ci)
+                actor = pl.add_mesh(
+                    mesh,
+                    scalars=mesh_labels,
+                    # render_points_as_spheres=True,
+                    # point_size=5,
+                    # rgb=True,
+                    show_scalar_bar=True,
+                    # text="Curvature"
+                )
+                # actor.mapper.lookup_table.cmap = 'jet'
+                pl.show_bounds(grid=True, all_edges=False,  font_size=10)
+
+        pl.link_views()
+        pl.show()
+
 if __name__=="__main__":
-    path = paths.CACHED_DATASETS_PATH + "DrivAerNet/train2/"
+    path = paths.CACHED_DATASETS_PATH + "DrivAerNet/train/"
     dataset_manager = pas2.DatasetManager(path)
+    num_values = 100
+
+
     mesh_folders = dataset_manager.get_mesh_folders(10)
     label_names = ["Thickness"]
 
-    for mesh_folder in mesh_folders:
-        plot_augmentations(mesh_folder, label_names, show_edge=False)
+    # This specifically plots the augmentations
+    # for mesh_folder in mesh_folders:
+    #     plot_augmentations(mesh_folder, label_names, show_edge=False)
 
-    # all_clouds = dataset.point_clouds
-    # # data x point x position
-    #
-    #
-    # print("avg_position: ", np.mean(np.mean(dataset.point_clouds, axis=1), axis=0))
-    # print("min_position: ", np.min(np.min(dataset.point_clouds, axis=1), axis=0))
-    # print("max_position: ", np.max(np.max(dataset.point_clouds, axis=1), axis=0))
-    # lengths = np.max(dataset.point_clouds, axis=1) - np.min(dataset.point_clouds, axis=1)
-    #
-    # print("avg_length: ", np.mean(lengths, axis=0))
-    # print("min_length: ", np.min(lengths, axis=0))
-    # print("max_length: ", np.max(lengths, axis=0))
-    #
-    # plot_all(6, 6, dataset)
+    show_points = True
+
+    if show_points:
+    # get point clouds
+        vertices, _, labels = dataset_manager.load_numpy_pointcloud(num_clouds=num_values, num_points=1024,
+                                                                  augmentations="none", outputs_at = "vertices",
+                                                                  desired_label_names=label_names)
+
+        print("avg_position: ", np.mean(np.mean(vertices, axis=1), axis=0))
+        print("min_position: ", np.min(np.min(vertices, axis=1), axis=0))
+        print("max_position: ", np.max(np.max(vertices, axis=1), axis=0))
+        lengths = np.max(vertices, axis=1) - np.min(vertices, axis=1)
+
+        print("avg_length: ", np.mean(lengths, axis=0))
+        print("min_length: ", np.min(lengths, axis=0))
+        print("max_length: ", np.max(lengths, axis=0))
+
+        plot_all_clouds(6, 6, vertices=vertices, labels=labels)
+
+
+    # get meshes
+    else:
+        vertices, _, faces, labels = dataset_manager.load_numpy_meshes(num_meshes=num_values,
+                                                                       augmentations="none",
+                                                                       outputs_at="vertices",
+                                                                       desired_label_names=label_names)
+        plot_all_meshes(6, 6, vertices=vertices, faces=faces, labels=labels)
     # for i in range(len(dataset)):
     #     # a = dataset[i]
     #     cloud, labels, _ = dataset[i]
