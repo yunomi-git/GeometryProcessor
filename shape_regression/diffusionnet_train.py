@@ -6,12 +6,12 @@
 #
 # from __future__ import print_function
 #
-# from heuristic_prediction.diffusionnet_model import DiffusionNetWrapper, DiffusionNetDataset
+# from shape_regression.diffusionnet_model import DiffusionNetWrapper, DiffusionNetDataset
 #
 # import torch
 # import torch.optim as optim
 # from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
-# from heuristic_prediction.regression_tools import RegressionTools, succinct_label_save_name, seed_all
+# from shape_regression.regression_tools import RegressionTools, succinct_label_save_name, seed_all
 # import paths
 # from torch.utils.data import DataLoader
 # import math

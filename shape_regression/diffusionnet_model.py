@@ -33,6 +33,8 @@ class DiffusionNetDataset(Dataset):
         self.k_eig = k_eig
         self.k_eig_list = []
         self.op_cache_dir = op_cache_dir
+        if op_cache_dir is None:
+            self.op_cache_dir = data_root_dir + "../op_cache/"
         self.outputs_at = outputs_at
         self.partition = partition
         self.augmentations = augmentations

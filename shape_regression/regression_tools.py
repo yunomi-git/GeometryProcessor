@@ -264,10 +264,10 @@ class RegressionTools:
             if (plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0) or epoch + 1 == args['epochs']:
                 timer = Stopwatch()
                 timer.start()
-                self.save_r2(epoch, r2=res_train, true=train_true, pred=train_pred, labels=labels)
+                self.save_r2(phase='train', epoch=epoch, r2=res_train, true=train_true, pred=train_pred, labels=labels)
 
                 if do_test:
-                    self.save_r2(epoch, r2=res_test, true=test_true, pred=test_pred, labels=labels)
+                    self.save_r2(phase='test', epoch=epoch, r2=res_test, true=test_true, pred=test_pred, labels=labels)
 
                 print("Time to save figures: ", timer.get_time())
 
@@ -292,7 +292,7 @@ class RegressionTools:
                     torch.save(self.model.state_dict(), self.checkpoint_path + 'model.t7')
 
 
-    def save_r2(self, epoch, r2, true, pred, labels):
+    def save_r2(self, phase, epoch, r2, true, pred, labels):
         plt.figure(0)
         plt.clf()
         for i in range(len(r2)):
@@ -305,10 +305,10 @@ class RegressionTools:
 
             plt.scatter(true[plot_indices], error[plot_indices], alpha=0.15)
             plt.hlines(y=0, xmin=min(true), xmax=max(true), color="red")
-            plt.xlabel("Train True")
+            plt.xlabel(phase + " True")
             plt.ylabel(labels[i] + " Error")
 
-        plt.savefig(self.checkpoint_path + "images/" + 'confusion_' + str(epoch) + '.png')
+        plt.savefig(self.checkpoint_path + "images/" + phase + '_confusion_' + str(epoch) + '.png')
 
     def save_loss(self, labels, res_train_history, loss_train_history, res_test_history=None, loss_test_history=None):
         timer = Stopwatch()
@@ -329,6 +329,7 @@ class RegressionTools:
             plt.ylabel(labels[i] + " Train R2")
             plt.xlabel("Epoch")
             plt.legend()
+            plt.grid(visible=True, which='major', axis='y')
 
         plt.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
 
@@ -342,7 +343,7 @@ class RegressionTools:
         plt.xlabel("Epoch")
         plt.legend()
         plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
-        print("Time to save figures: ", timer.get_time())
+        # print("Time to save figures: ", timer.get_time())
 
 
 def get_accuracy_tolerance(preds: np.ndarray, actual: np.ndarray, tolerance=0.1):

@@ -8,7 +8,7 @@ from scipy.spatial.transform import Rotation as R
 import warnings
 import io
 from PIL import Image
-
+import pyglet.gl as gl
 
 TRIMESH_TEST_MESH = trimesh.Trimesh(vertices=np.array([[0.0, 1, 0.0], [1, 0.0, 0.0], [0, 0, 0], [0.0, 0.01, 1]]),
                                     faces=np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]]))
@@ -190,7 +190,6 @@ class MeshAuxilliaryInfo:
                                                                    multiple_hits=False)
         hit_origins = points[ray_ids]
         distances = np.linalg.norm(hits - hit_origins, axis=1)
-        # gap_sizes = distances
 
         gap_sizes = np.ones(len(points)) * NO_GAP_VALUE
         gap_sizes[ray_ids] = distances
@@ -525,14 +524,20 @@ def show_meshes(meshes):
         s.add_geometry(mesh)
     s.show()
 
-def save_mesh_picture(mesh: trimesh.Trimesh, name, resolution=1080, view="isometric"):
-    # views are isometric and default
+def get_mesh_picture(mesh: trimesh.Trimesh, resolution=1080, isometric=True):
     s = trimesh.Scene()
-    set_default_camera(s, mesh)
+    set_default_camera(s, mesh, isometric=isometric)
+    s.add_geometry(mesh)
 
-    data = s.save_image(resolution=(resolution, resolution))
+    data = s.save_image(resolution=(resolution, resolution), visible=True)
     image = Image.open(io.BytesIO(data))
+    return image
+
+
+def save_mesh_picture(mesh: trimesh.Trimesh, name, resolution=1080, isometric=True):
+    image = get_mesh_picture(mesh, resolution, isometric)
     image.save(f"{name}.png", "PNG")
+
 
 def show_mesh_with_orientation(mesh):
     mesh_aux = MeshAuxilliaryInfo(mesh)

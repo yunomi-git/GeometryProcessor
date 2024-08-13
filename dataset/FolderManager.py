@@ -40,6 +40,17 @@ class FilePath:
         else:
             return self.subfolder_path + self.file_name
 
+def filepath_from_string(file_path_string) -> FilePath:
+    if file_path_string[-1] == "/":
+        last_folder_index = file_path_string.rfind(file_path_string[:-1]) + 1
+        return FilePath(base_path=file_path_string[:last_folder_index], subfolder_path="", file_name=file_path_string[last_folder_index:], is_folder=True)
+    else:
+        last_folder_index = file_path_string.rfind(file_path_string) + 1
+        return FilePath(base_path=file_path_string[:last_folder_index], subfolder_path="",
+                        file_name=file_path_string[last_folder_index:], is_folder=False)
+
+
+
 class DirectoryPathManager:
     def __init__(self, base_path, base_unit_is_file, max_files_per_subfolder=-1, recursive=True):
         self.base_path = base_path

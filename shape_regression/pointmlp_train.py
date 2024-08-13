@@ -6,12 +6,12 @@ import torch.utils.data.distributed
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from heuristic_prediction import pointmlp_model
+from shape_regression import pointmlp_model
 
 import paths
 import math
-from heuristic_prediction.pointcloud_dataloader import PointCloudDataset
-from heuristic_prediction.regression_tools import RegressionTools, succinct_label_save_name
+from shape_regression.pointcloud_dataloader import PointCloudDataset
+from shape_regression.regression_tools import RegressionTools, succinct_label_save_name
 
 
 

@@ -6,6 +6,7 @@ import random
 import numpy as np
 from process_and_save import MeshDatasetFileManager
 import util
+from dataset.FolderManager import filepath_from_string
 
 from process_and_save import calculate_instance_target, get_augmented_mesh
 
@@ -39,8 +40,10 @@ if __name__ == "__main__":
         # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
         # centroid = np.mean(mesh_aux.vertices, axis=0)
         # print(centroid)
-        trimesh_util.show_mesh(mesh)
-        trimesh_util.show_mesh(mesh, isometric=True)
+        # trimesh_util.show_mesh(mesh)
+        # trimesh_util.show_mesh(mesh, isometric=True)
+        file_path = filepath_from_string(mesh_path)
+        trimesh_util.save_mesh_picture(mesh, name=file_path.base_path + file_path.file_name, isometric=True)
 
         ## Normals
         # mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)

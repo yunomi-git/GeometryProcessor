@@ -6,7 +6,7 @@ import paths
 import random
 import stopwatch
 from tqdm import tqdm
-import heuristic_prediction.printability_metrics as printm
+import shape_regression.printability_metrics as printm
 
 def expected_sphere_overhang(min_ang):
     max_ang = np.pi/2

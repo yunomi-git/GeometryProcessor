@@ -1,6 +1,6 @@
 import paths
 from dataset.process_and_save import MeshDatasetFileManager
-from heuristic_prediction.pointcloud_dataloader import PointCloudDataset
+from shape_regression.pointcloud_dataloader import PointCloudDataset
 import trimesh_util
 import pyvista as pv
 import numpy as np

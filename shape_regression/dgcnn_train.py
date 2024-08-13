@@ -2,11 +2,11 @@ from __future__ import print_function
 import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts, ReduceLROnPlateau
-from heuristic_prediction.regression_tools import RegressionTools, succinct_label_save_name, seed_all
+from shape_regression.regression_tools import RegressionTools, succinct_label_save_name, seed_all
 import paths
-from heuristic_prediction.dgcnn_model import DGCNN_param, DGCNN_segment
+from shape_regression.dgcnn_model import DGCNN_param, DGCNN_segment
 from torch.utils.data import DataLoader
-from heuristic_prediction.pointcloud_dataloader import PointCloudDataset
+from shape_regression.pointcloud_dataloader import PointCloudDataset
 
 torch.cuda.empty_cache()
 

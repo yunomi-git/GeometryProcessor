@@ -1,11 +1,11 @@
 from __future__ import print_function
 
-from heuristic_prediction.diffusionnet_model import DiffusionNetWrapper, DiffusionNetDataset
+from shape_regression.diffusionnet_model import DiffusionNetWrapper, DiffusionNetDataset
 import numpy as np
 import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
-from heuristic_prediction.regression_tools import RegressionTools, succinct_label_save_name, seed_all
+from shape_regression.regression_tools import RegressionTools, succinct_label_save_name, seed_all
 from dataset.process_and_save_temp import Augmentation
 import paths
 from torch.utils.data import DataLoader
@@ -77,7 +77,7 @@ model_args = {
 experiment_name = succinct_label_save_name(label_names)
 
 args = {
-    "dataset_name": "DrivAerNet/train/",
+    "dataset_name": "DaVinci/train/",
     "exp_name": experiment_name,
     "label_names": label_names,
     "input_append_vertex_label_names": input_append_vertex_label_names,
@@ -88,7 +88,7 @@ args = {
     "remove_outlier_ratio": 0.0,
 
     # Dataset Param
-    "data_fraction": 1.0,
+    "data_fraction": 0.3,
     "do_test": True,
     "workers": 24,
     "augment_random_rotate": (model_args["input_feature_type"] == 'xyz'),
@@ -171,7 +171,7 @@ if __name__=="__main__":
         include_faces=True
     )
 
-    regression_manager.train(args, do_test=args["do_test"], plot_every_n_epoch=1)
+    regression_manager.train(args, do_test=args["do_test"], plot_every_n_epoch=5)
 
 
 

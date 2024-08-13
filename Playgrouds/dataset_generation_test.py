@@ -2,7 +2,7 @@ import trimesh
 import trimesh_util
 import paths
 import numpy as np
-from heuristic_prediction import printability_metrics
+from shape_regression import printability_metrics
 from tqdm import tqdm
 import json
 import os

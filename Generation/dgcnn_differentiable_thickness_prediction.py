@@ -5,9 +5,9 @@ import json
 
 import paths
 from dataset.process_and_save import MeshDatasetFileManager
-from heuristic_prediction.pointcloud_dataloader import PointCloudDataset
+from shape_regression.pointcloud_dataloader import PointCloudDataset
 import trimesh_util
-from heuristic_prediction.dgcnn_model import DGCNN_segment
+from shape_regression.dgcnn_model import DGCNN_segment
 import Generation.DifferentiableNormals as difnorm
 import torch
 import torch.nn as nn
