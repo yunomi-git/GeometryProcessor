@@ -22,9 +22,9 @@ torch.cuda.empty_cache()
 
 label_names = [
     # "Volume"
-    "Thickness"
+    # "Thickness"
     # "curvature"
-    # "surface_area"
+    "SurfaceArea"
 ]
 
 input_append_vertex_label_names = [
@@ -64,7 +64,7 @@ model_args = {
     "C_width": 128,
     "N_block": 4,
     "last_activation": None,
-    "outputs_at": 'vertices',
+    "outputs_at": 'global',
     "mlp_hidden_dims": None,
     "dropout": True,
     "with_gradient_features": True,
@@ -77,21 +77,19 @@ model_args = {
 experiment_name = succinct_label_save_name(label_names)
 
 args = {
-    "dataset_name": "th10k_norm/",
-    "testset_name": "th10k_norm/",
+    "dataset_name": "DrivAerNet/train/",
     "exp_name": experiment_name,
     "label_names": label_names,
     "input_append_vertex_label_names": input_append_vertex_label_names,
     "input_append_global_label_names": input_append_global_label_names,
     "outputs_at": "vertices",
-    "seed": 2,
+    "seed": 0,
     "augmentations": "none",
-    "remove_outlier_ratio": 0.2,
+    "remove_outlier_ratio": 0.0,
 
     # Dataset Param
     "data_fraction": 1.0,
-    "data_fraction_test": 0.1,
-    "do_test": False,
+    "do_test": True,
     "workers": 24,
     "augment_random_rotate": (model_args["input_feature_type"] == 'xyz'),
 
@@ -114,19 +112,18 @@ args.update(model_args)
 
 if __name__=="__main__":
     seed_all(args["seed"])
-    data_root_dir = paths.CACHED_DATASETS_PATH + args["dataset_name"] + "train/"
-    test_root_dir = paths.CACHED_DATASETS_PATH + args["testset_name"] + "test/"
-    op_cache_dir = paths.CACHED_DATASETS_PATH + args["dataset_name"] + "op_cache/"
+    data_root_dir = paths.CACHED_DATASETS_PATH + args["dataset_name"]
+    op_cache_dir = data_root_dir + "../op_cache/"
     print(op_cache_dir)
 
     train_loader = DataLoader(DiffusionNetDataset(data_root_dir, model_args["k_eig"],
                                                   op_cache_dir=op_cache_dir,
+                                                  partition="train",
                                                   data_fraction=args["data_fraction"], label_names=label_names,
                                                   augment_random_rotate=args["augment_random_rotate"],
                                                   extra_vertex_label_names=args["input_append_vertex_label_names"],
                                                   extra_global_label_names=args["input_append_global_label_names"],
                                                   outputs_at=args["outputs_at"],
-                                                  is_training=True,
                                                   augmentations=args["augmentations"],
                                                   remove_outlier_ratio=args["remove_outlier_ratio"],
                                                   cache_operators=cache_operators),
@@ -134,16 +131,16 @@ if __name__=="__main__":
                                   batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = None
     if args["do_test"]:
-        test_loader = DataLoader(DiffusionNetDataset(test_root_dir, model_args["k_eig"],
+        test_loader = DataLoader(DiffusionNetDataset(data_root_dir, model_args["k_eig"],
                                                      op_cache_dir=op_cache_dir,
+                                                     partition="validation",
                                                      data_fraction=args["data_fraction"], label_names=label_names,
                                                      augment_random_rotate=args["augment_random_rotate"],
                                                      extra_vertex_label_names=args["input_append_vertex_label_names"],
                                                      extra_global_label_names=args["input_append_global_label_names"],
                                                      outputs_at=args["outputs_at"],
                                                      augmentations=args["augmentations"],
-                                                     remove_outlier_ratio=args["remove_outlier_ratio"],
-                                                     is_training=False),
+                                                     remove_outlier_ratio=args["remove_outlier_ratio"]),
                                  num_workers=24,
                                  batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 

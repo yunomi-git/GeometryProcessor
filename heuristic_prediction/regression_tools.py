@@ -268,14 +268,16 @@ class RegressionTools:
 
                 if do_test:
                     self.save_r2(epoch, r2=res_test, true=test_true, pred=test_pred, labels=labels)
-                    self.save_loss(labels=labels,
-                                   res_train_history=res_train_history, loss_train_history=loss_train_history,
-                                   res_test_history=res_test_history, loss_test_history=loss_test_history)
-                else:
-                    self.save_loss(labels=labels,
-                                   res_train_history=res_train_history, loss_train_history=loss_train_history)
 
                 print("Time to save figures: ", timer.get_time())
+
+            if do_test:
+                self.save_loss(labels=labels,
+                               res_train_history=res_train_history, loss_train_history=loss_train_history,
+                               res_test_history=res_test_history, loss_test_history=loss_test_history)
+            else:
+                self.save_loss(labels=labels,
+                               res_train_history=res_train_history, loss_train_history=loss_train_history)
 
             # Save Checkpoint
             if do_test:

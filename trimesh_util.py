@@ -6,6 +6,9 @@ import util
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
 import warnings
+import io
+from PIL import Image
+
 
 TRIMESH_TEST_MESH = trimesh.Trimesh(vertices=np.array([[0.0, 1, 0.0], [1, 0.0, 0.0], [0, 0, 0], [0.0, 0.01, 1]]),
                                     faces=np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]]))
@@ -487,21 +490,31 @@ def show_mesh_with_facet_colors(mesh, values: np.ndarray, normalize=True):
     s.add_geometry(mesh)
     s.show()
 
-def set_default_camera(scene: trimesh.Scene, mesh: trimesh.Trimesh):
-    # y_min = mesh.bounds[0, 1]
-    # y_max = mesh.bounds[1, 1]
+def set_default_camera(scene: trimesh.Scene, mesh: trimesh.Trimesh, isometric=False):
     width = mesh.bounds[1, 1] - mesh.bounds[0, 1]
     height = mesh.bounds[1, 2] - mesh.bounds[0, 2]
+    length = mesh.bounds[1, 0] - mesh.bounds[0, 0]
     centroid = mesh.centroid
-    camera_offset = np.array([0, -width * 2 - height, 0])
+
+
     orientation = np.array([np.pi / 2, 0, 0])
-    orientation_transform = create_transform_matrix(orientation=orientation)
-    translation_transform = create_transform_matrix(translation=centroid + camera_offset)
+    if isometric:
+        radius = np.sqrt(width ** 2 + height ** 2 + length ** 2)
+        camera_offset = np.array([0, -radius * 1.0, 0])
+        isometric_orientation = np.array([-np.pi/6, -np.pi / 3.7, -np.pi/8])
+        isometric_transform = R.from_euler('zyx', [-np.pi / 3.7, 0, -np.pi/6]).as_matrix()
+        orientation_transform = create_transform_matrix(orientation=orientation + isometric_orientation)
+        translation_transform = create_transform_matrix(translation=centroid + isometric_transform @ camera_offset)
+    else:
+        radius = np.sqrt(height ** 2 + length ** 2)
+        camera_offset = np.array([0, -radius * 1.3, 0])
+        orientation_transform = create_transform_matrix(orientation=orientation)
+        translation_transform = create_transform_matrix(translation=centroid + camera_offset)
     scene.camera_transform = translation_transform @ orientation_transform
 
-def show_mesh(mesh):
+def show_mesh(mesh, isometric=False):
     s = trimesh.Scene()
-    set_default_camera(s, mesh)
+    set_default_camera(s, mesh, isometric=isometric)
     s.add_geometry(mesh)
     s.show()
 
@@ -511,6 +524,15 @@ def show_meshes(meshes):
     for mesh in meshes:
         s.add_geometry(mesh)
     s.show()
+
+def save_mesh_picture(mesh: trimesh.Trimesh, name, resolution=1080, view="isometric"):
+    # views are isometric and default
+    s = trimesh.Scene()
+    set_default_camera(s, mesh)
+
+    data = s.save_image(resolution=(resolution, resolution))
+    image = Image.open(io.BytesIO(data))
+    image.save(f"{name}.png", "PNG")
 
 def show_mesh_with_orientation(mesh):
     mesh_aux = MeshAuxilliaryInfo(mesh)
@@ -531,8 +553,13 @@ def show_mesh_with_z_normal(mesh):
     s.add_geometry(mesh)
     s.show()
 
-if __name__=="__main__":
-    print("hi")
+
+
+
+
+
+
+
 
 ### Below is voxel stuff. Unused.
 
