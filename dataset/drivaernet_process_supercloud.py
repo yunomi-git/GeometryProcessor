@@ -1,6 +1,6 @@
 import trimesh
 import trimesh_util
-from dataset.FolderManager import DirectoryPathManager, FilePath
+from FolderManager import DirectoryPathManager, FilePath
 import paths
 from dataset.pymeshlab_remesh import default_remesh
 from pathlib import Path

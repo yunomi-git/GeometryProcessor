@@ -133,6 +133,18 @@ class Stopwatch:
     def get_elapsed_time(self):
         return self.elapsed_time + self.get_time()
 
+def test_stopwatch():
+    stopwatch = Stopwatch()
+    stopwatch.start()
+    time.sleep(1.0)
+    print("Measure | Expected")
+    print(stopwatch.get_elapsed_time(), 1.0)
+    stopwatch.pause()
+    time.sleep(1.0)
+    stopwatch.resume()
+    time.sleep(1.0)
+    print(stopwatch.get_elapsed_time(), 2.0)
+    print(stopwatch.get_time(), 1.0)
 
 class IOStream():
     def __init__(self, path):

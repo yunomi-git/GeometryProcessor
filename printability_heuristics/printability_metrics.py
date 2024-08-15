@@ -4,9 +4,7 @@ import trimesh
 import trimesh_util
 import numpy as np
 import paths
-import random
-import stopwatch
-from tqdm import tqdm
+
 
 
 def get_thickness_printability(mesh_aux: trimesh_util.MeshAuxilliaryInfo,

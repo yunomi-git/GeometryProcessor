@@ -7,7 +7,7 @@ from pytorch3d.structures.meshes import Meshes
 import torch
 import torch.nn.functional as f
 
-from Generation.Thresholds import get_threshold_penalty
+from printability_heuristics.Thresholds import get_threshold_penalty
 
 # Referencs: https://pytorch3d.readthedocs.io/en/latest/_modules/pytorch3d/loss/mesh_normal_consistency.html
 

@@ -7,7 +7,7 @@ import trimesh_util as trimesh_util
 import numpy as np
 import os
 from pathlib import Path
-from dataset.FolderManager import DirectoryPathManager
+from FolderManager import DirectoryPathManager
 
 time = util.Stopwatch()
 

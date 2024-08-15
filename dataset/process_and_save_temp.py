@@ -9,7 +9,7 @@ import json
 from typing import List
 import os
 import shutil
-import dataset.FolderManager as FolderManager
+import FolderManager
 from tqdm import tqdm
 import util
 import argparse
@@ -244,12 +244,16 @@ class MeshFolder:
 
 
     def load_mesh_with_augmentation(self, augmentation) -> MeshRawLabels:
+        if not self.augmentation_is_cached(augmentation):
+            print("Augmentation not available:", self.mesh_dir_path)
+            return
+
         if isinstance(augmentation, Augmentation):
             aug_path = self.mesh_dir_path + augmentation.as_string() + "/"
         else: # (string)
             aug_path = self.mesh_dir_path + augmentation + "/"
 
-        with open(aug_path + "/" + "manifest.json", 'r') as f:
+        with open(aug_path + "manifest.json", 'r') as f:
             try:
                 manifest = json.load(f)
             except:
@@ -293,8 +297,6 @@ class MeshFolder:
         for aug_string in available_augmentations:
             mesh_labels.append(self.load_mesh_with_augmentation(aug_string))
         return mesh_labels
-        # return self.load_specific_augmentations_if_available(available_augmentations)
-        # TODO This takes filenames not actual augmentations
 
     def load_specific_augmentations_if_available(self, augmentations: List[Augmentation]):
         mesh_labels = []
@@ -302,6 +304,12 @@ class MeshFolder:
             if self.augmentation_is_cached(augmentation):
                 mesh_labels.append(self.load_mesh_with_augmentation(augmentation))
         return mesh_labels
+
+    def mesh_folder_is_invalid(self):
+        subfolder = DEFAULT_AUGMENTATION.as_string()
+        if not os.path.exists(self.mesh_dir_path + subfolder + "/"):
+            return False
+        return True
 
 
 class GeometryReadyData:
@@ -439,8 +447,6 @@ class DatasetManager:
             labels.append(mesh_data.labels)
 
         return vertices, augmented_vertices, faces, labels
-
-
 
 #### RUN ############################
 

@@ -1,7 +1,7 @@
 import paths
 import sklearn.model_selection
 import json
-from dataset.process_and_save_temp import FolderManager
+import FolderManager
 
 # Idea: create a list of train / test splits for a given folder
 # Name: same as folder name. folder_splits

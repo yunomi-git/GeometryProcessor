@@ -1,14 +1,11 @@
 import trimesh
 import numpy as np
 from util import Stopwatch
-from tqdm import tqdm
 import util
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
-import warnings
 import io
 from PIL import Image
-import pyglet.gl as gl
 
 TRIMESH_TEST_MESH = trimesh.Trimesh(vertices=np.array([[0.0, 1, 0.0], [1, 0.0, 0.0], [0, 0, 0], [0.0, 0.01, 1]]),
                                     faces=np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]]))
@@ -443,6 +440,7 @@ def repair_missing_mesh_values(mesh, vertex_ids, values, max_iterations=2, itera
 
 def show_sampled_values(mesh, points, values, normalize=True, scale=None, alpha=0.8):
     s = trimesh.Scene()
+    set_default_camera(s, mesh, isometric=True)
     if len(points) > 0:
         if normalize:
             values = util.normalize_minmax_01(values)
@@ -463,6 +461,7 @@ def show_sampled_values(mesh, points, values, normalize=True, scale=None, alpha=
 
 def show_mesh_with_normals(mesh, points, normals):
     s = trimesh.Scene()
+    set_default_camera(s, mesh, isometric=True)
     if len(points) > 0:
         colors = np.array([0, 0, 255, 255])
         point_cloud = trimesh.points.PointCloud(vertices=points,
@@ -511,7 +510,7 @@ def set_default_camera(scene: trimesh.Scene, mesh: trimesh.Trimesh, isometric=Fa
         translation_transform = create_transform_matrix(translation=centroid + camera_offset)
     scene.camera_transform = translation_transform @ orientation_transform
 
-def show_mesh(mesh, isometric=False):
+def show_mesh(mesh, isometric=True):
     s = trimesh.Scene()
     set_default_camera(s, mesh, isometric=isometric)
     s.add_geometry(mesh)

@@ -45,7 +45,7 @@ args = {
     "seed": 1,
 
     # Dataset Param
-    "data_fraction": 1.0,
+    "data_fraction": 0.1,
     "do_test": True,
     "workers": 23,
 

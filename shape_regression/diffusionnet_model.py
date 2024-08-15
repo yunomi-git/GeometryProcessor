@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import util
 from dataset.process_and_save import MeshDatasetFileManager, get_augmented_mesh
 from torch.utils.data import Dataset
@@ -13,6 +15,7 @@ import trimesh
 import torch
 import trimesh_util
 import util
+from dataset.VertexAggregator import VertexAggregator
 
 from diffusion_net.layers import DiffusionNet
 from diffusion_net.geometry import toNP
@@ -28,7 +31,7 @@ class DiffusionNetDataset(Dataset):
                  op_cache_dir=None, data_fraction=1.0, label_names=None,
                  extra_vertex_label_names=None, extra_global_label_names=None,
                  augment_random_rotate=True, cache_operators=True,
-                 remove_outlier_ratio=0.0):
+                 remove_outlier_ratio=0.0, aggregator: VertexAggregator=None):
         self.root_dir = data_root_dir
         self.k_eig = k_eig
         self.k_eig_list = []
@@ -39,6 +42,8 @@ class DiffusionNetDataset(Dataset):
         self.partition = partition
         self.augmentations = augmentations
         self.augment_random_rotate = augment_random_rotate
+
+        self.aggregator = aggregator
 
         file_manager = DatasetManager(data_root_dir, partition=partition)
 
@@ -57,17 +62,20 @@ class DiffusionNetDataset(Dataset):
 
         # Now parse through all the files
         print("Loading Meshes")
+        outputs_at_to_load_from = self.outputs_at
+        if aggregator is not None:
+            outputs_at_to_load_from = "vertices"
         for mesh_folder in tqdm(mesh_folders):
             mesh_labels = mesh_folder.load_mesh_with_augmentations(self.augmentations)
 
             for mesh_label in mesh_labels:
-                mesh_data = mesh_label.convert_to_data(self.outputs_at, label_names,
+                mesh_data = mesh_label.convert_to_data(outputs_at_to_load_from, label_names,
                                                        extra_vertex_label_names=extra_vertex_label_names,
                                                        extra_global_label_names=extra_global_label_names)
 
                 verts = mesh_data.vertices
                 aug_verts = mesh_data.augmented_vertices
-                label = mesh_data.labels
+                label = self.aggregator.aggregate(mesh_data.labels)
                 faces = mesh_data.faces
 
                 if len(verts) > 1e6:

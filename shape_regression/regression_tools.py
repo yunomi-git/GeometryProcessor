@@ -11,6 +11,9 @@ import util
 from util import IOStream, Stopwatch
 import matplotlib.pyplot as plt
 from datetime import datetime
+from matplotlib import gridspec
+from scipy import stats
+
 
 class RegressionTools:
     def __init__(self, args, label_names, train_loader, test_loader, model, opt, scheduler=None, clip_parameters=False,
@@ -264,10 +267,10 @@ class RegressionTools:
             if (plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0) or epoch + 1 == args['epochs']:
                 timer = Stopwatch()
                 timer.start()
-                self.save_r2(phase='train', epoch=epoch, r2=res_train, true=train_true, pred=train_pred, labels=labels)
+                self.save_r2(phase='train', epoch=epoch, r2_list=res_train, true_list=train_true, pred_list=train_pred, labels=labels)
 
                 if do_test:
-                    self.save_r2(phase='test', epoch=epoch, r2=res_test, true=test_true, pred=test_pred, labels=labels)
+                    self.save_r2(phase='test', epoch=epoch, r2_list=res_test, true_list=test_true, pred_list=test_pred, labels=labels)
 
                 print("Time to save figures: ", timer.get_time())
 
@@ -292,23 +295,107 @@ class RegressionTools:
                     torch.save(self.model.state_dict(), self.checkpoint_path + 'model.t7')
 
 
-    def save_r2(self, phase, epoch, r2, true, pred, labels):
-        plt.figure(0)
-        plt.clf()
-        for i in range(len(r2)):
-            plt.subplot(len(r2), 1, i + 1)
-            error = pred[:, i] - true[:, i]
-            true = true[:, i]
+    def save_r2(self, phase, epoch, r2_list, true_list, pred_list, labels):
+        # plt.figure(0)
+        # plt.clf()
+        # fig, axes = plt.subplots(len(r2_list), 1)
+        # for i in range(len(r2_list)):
+        #     ax = axes[i]
+        #     self.plot_r2_on_ax(ax, phase=phase, true=true_list[:, i], pred = pred_list[:, i], label=labels[i])
+        #
+        # plt.savefig(self.checkpoint_path + "images/" + phase + '_confusion_' + str(epoch) + '.png')
 
-            plot_indices = np.arange(start=0, stop=len(error), step=int(np.ceil(len(error) / self.NUM_PLOT_POINTS)),
+        for i in range(len(r2_list)):
+            true = true_list[:, i]
+            pred = pred_list[:, i]
+            plot_indices = np.arange(start=0, stop=len(true), step=int(np.ceil(len(true) / self.NUM_PLOT_POINTS)),
                                      dtype=np.int64)
+            fig = self.create__r2_kde_fig(phase=phase, true=true[plot_indices], pred=pred[plot_indices], label=labels[i])
+            # fig.tight_layout()
+            fig.savefig(self.checkpoint_path + "images/" + phase + '_confusion_' + labels[i] + "_" + str(epoch) + '.png')
 
-            plt.scatter(true[plot_indices], error[plot_indices], alpha=0.15)
-            plt.hlines(y=0, xmin=min(true), xmax=max(true), color="red")
-            plt.xlabel(phase + " True")
-            plt.ylabel(labels[i] + " Error")
+        # plt.figure(0)
+        # plt.clf()
+        # for i in range(len(r2_list)):
+        #     plt.subplot(len(r2_list), 1, i + 1)
+        #     error = pred_list[:, i] - true_list[:, i]
+        #     true_list = true_list[:, i]
+        #
+        #     plot_indices = np.arange(start=0, stop=len(error), step=int(np.ceil(len(error) / self.NUM_PLOT_POINTS)),
+        #                              dtype=np.int64)
+        #
+        #     plt.scatter(true_list[plot_indices], error[plot_indices], alpha=0.15)
+        #     plt.hlines(y=0, xmin=min(true_list), xmax=max(true_list), color="red")
+        #     plt.xlabel(phase + " True")
+        #     plt.ylabel(labels[i] + " Error")
+        #
+        # plt.savefig(self.checkpoint_path + "images/" + phase + '_confusion_' + str(epoch) + '.png')
 
-        plt.savefig(self.checkpoint_path + "images/" + phase + '_confusion_' + str(epoch) + '.png')
+    def plot_r2_on_ax(self, ax, phase, true, pred, label):
+        error = pred - true
+
+        # plot_indices = np.arange(start=0, stop=len(error), step=int(np.ceil(len(error) / self.NUM_PLOT_POINTS)),
+        #                          dtype=np.int64)
+
+        ax.scatter(true, error, alpha=0.15)
+        ax.hlines(y=0, xmin=min(true), xmax=max(true), color="red")
+        ax.set_xlabel(phase + " True")
+        ax.set_ylabel(label + " Error")
+
+    def create__r2_kde_fig(self, phase, true, pred, label, ratio=5):
+        # TODO need to sample from pred and true
+        ##### Instantiate grid ########################
+        # Set up 4 subplots and aspect ratios as axis objects using GridSpec:
+        gs = gridspec.GridSpec(2, 2, width_ratios=[1, ratio], height_ratios=[ratio, 1])
+        # Add space between scatter plot and KDE plots to accommodate axis labels:
+        gs.update(hspace=0.3, wspace=0.3)
+
+        fig = plt.figure(figsize=[12, 10])  # Set background canvas colour to White instead of grey default
+        fig.patch.set_facecolor('white')
+
+        error = pred - true
+
+        xmin = np.min(true)
+        xmax = np.max(true)
+        ymin = np.min(error)
+        ymax = np.max(error)
+
+        ax = plt.subplot(gs[0, 1])  # Instantiate scatter plot area and axis range
+        ax.set_xlim(xmin, xmax)
+        ax.set_ylim(ymin, ymax)
+        ax.yaxis.labelpad = 10  # adjust space between x and y axes and their labels if needed
+
+        axl = plt.subplot(gs[0, 0], sharey=ax)  # Instantiate left KDE plot area
+        axl.get_xaxis().set_visible(False)  # Hide tick marks and spines
+        axl.get_yaxis().set_visible(False)
+        axl.spines["right"].set_visible(False)
+        axl.spines["top"].set_visible(False)
+        axl.spines["bottom"].set_visible(False)
+
+        axb = plt.subplot(gs[1, 1], sharex=ax)  # Instantiate bottom KDE plot area
+        axb.get_xaxis().set_visible(False)  # Hide tick marks and spines
+        axb.get_yaxis().set_visible(False)
+        axb.spines["right"].set_visible(False)
+        axb.spines["top"].set_visible(False)
+        axb.spines["left"].set_visible(False)
+
+        axc = plt.subplot(gs[1, 0])  # Instantiate legend plot area
+        axc.axis('off')  # Hide tick marks and spines
+
+        ##### Actually Plot ############################
+        self.plot_r2_on_ax(ax, phase, true, pred, label)
+
+        kde = stats.gaussian_kde(true)
+        xx = np.linspace(xmin, xmax, 1000)
+        axb.plot(xx, kde(xx))
+        axb.fill_between(xx, kde(xx), alpha=0.3)
+
+        kde = stats.gaussian_kde(error)
+        yy = np.linspace(ymin, ymax, 1000)
+        axl.plot(kde(yy), yy)
+        axl.fill_between(kde(yy), yy, alpha=0.3)
+
+        return fig
 
     def save_loss(self, labels, res_train_history, loss_train_history, res_test_history=None, loss_test_history=None):
         timer = Stopwatch()

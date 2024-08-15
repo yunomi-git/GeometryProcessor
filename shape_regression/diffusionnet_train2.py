@@ -11,20 +11,22 @@ import paths
 from torch.utils.data import DataLoader
 import math
 from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts, ReduceLROnPlateau
+from dataset.VertexAggregator import ThicknessThresholdAggregator
 
 # system things
 device = torch.device('cuda')
 dtype = torch.float32
 
-cache_operators = True
+cache_operators = False
 
 torch.cuda.empty_cache()
 
 label_names = [
     # "Volume"
-    # "Thickness"
+    "Thickness"
     # "curvature"
-    "SurfaceArea"
+    # "SurfaceArea"
+    # "Volume"
 ]
 
 input_append_vertex_label_names = [
@@ -38,6 +40,11 @@ input_append_global_label_names = [
     # "ny",
     # "nz"
 ]
+
+aggregator = ThicknessThresholdAggregator(warning_thickness=0.02, failure_thickness=0.05)
+aggregator_name = "none"
+if aggregator is not None:
+    aggregator_name = aggregator.get_name()
 
 rot_augmentations = [Augmentation(scale=np.array([1.0, 1.0, 1.0]),
                                     rotation=np.array([np.pi, 0.0, 0.0])),
@@ -74,7 +81,7 @@ model_args = {
     # "device": device
 }
 
-experiment_name = succinct_label_save_name(label_names)
+experiment_name = succinct_label_save_name(label_names) + aggregator_name
 
 args = {
     "dataset_name": "DaVinci/train/",
@@ -82,7 +89,7 @@ args = {
     "label_names": label_names,
     "input_append_vertex_label_names": input_append_vertex_label_names,
     "input_append_global_label_names": input_append_global_label_names,
-    "outputs_at": "vertices",
+    "aggregator": aggregator_name,
     "seed": 0,
     "augmentations": "none",
     "remove_outlier_ratio": 0.0,
@@ -126,7 +133,8 @@ if __name__=="__main__":
                                                   outputs_at=args["outputs_at"],
                                                   augmentations=args["augmentations"],
                                                   remove_outlier_ratio=args["remove_outlier_ratio"],
-                                                  cache_operators=cache_operators),
+                                                  cache_operators=cache_operators,
+                                                  aggregator=aggregator),
                                   num_workers=24,
                                   batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = None
@@ -140,7 +148,8 @@ if __name__=="__main__":
                                                      extra_global_label_names=args["input_append_global_label_names"],
                                                      outputs_at=args["outputs_at"],
                                                      augmentations=args["augmentations"],
-                                                     remove_outlier_ratio=args["remove_outlier_ratio"]),
+                                                     remove_outlier_ratio=args["remove_outlier_ratio"],
+                                                     aggregator=aggregator),
                                  num_workers=24,
                                  batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 
