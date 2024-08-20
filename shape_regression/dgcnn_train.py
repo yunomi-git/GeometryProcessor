@@ -13,7 +13,8 @@ torch.cuda.empty_cache()
 label_names = [
     # "surface_area"
     # "thickness",
-    "Thickness"
+    # "Thickness"
+    "SurfaceArea"
 ]
 
 input_append_label_names = [
@@ -31,13 +32,13 @@ model_args = {
     "num_outputs": len(label_names),
     "k": 20,
     "dropout": 0.2,
-    "outputs_at": "vertices"
+    "outputs_at": "global"
 }
 
 experiment_name = succinct_label_save_name(label_names)
 
 args = {
-    "dataset_name": "DrivAerNet/train",
+    "dataset_name": "DaVinci/train",
     # "testset_name": "mcb_test",
     "exp_name": experiment_name,
     "label_names": label_names,
@@ -45,11 +46,11 @@ args = {
     "seed": 1,
 
     # Dataset Param
-    "data_fraction": 0.1,
+    "data_fraction": 0.3,
     "do_test": True,
     "workers": 23,
 
-    "imbalanced_weighting_bins": 1, #1 means no weighting
+    "imbalanced_weighting_bins": 10, #1 means no weighting
     "remove_outlier_ratio": 0.0, # 0 means remove no outliers
 
     # Opt Param
@@ -64,7 +65,9 @@ args = {
     # "restarts": 3,
     # "min_lr": 5e-4,
     "patience": 5,
-    "factor": 0.1
+    "factor": 0.1,
+
+    "notes": ""
 }
 
 args.update(model_args)

@@ -54,22 +54,22 @@ def translate_pointcloud(pointcloud):
 
 class PointCloudDataset(Dataset):
     def __init__(self, data_root_dir, num_points, label_names, partition='train', outputs_at="global",
-                 data_fraction=1.0, append_label_names=None, augmentations="all",
+                 data_fraction=1.0, num_data=None, append_label_names=None, augmentations="all",
                  imbalance_weight_num_bins=1, remove_outlier_ratio=0.05):
         self.outputs_at = outputs_at
         timer = util.Stopwatch()
         timer.start()
 
-        # self.point_clouds, self.label = load_point_clouds_numpy(data_root_dir=data_root_dir,
-        #                                                         num_points=2 * num_points,
-        #                                                         label_names=label_names,
-        #                                                         append_label_names=append_label_names,
-        #                                                         data_fraction=data_fraction,
-        #                                                         sampling_method=sampling_method,
-        #                                                         outputs_at=outputs_at)
         dataset_manager = DatasetManager(dataset_path=data_root_dir, partition=partition)
+
+        num_clouds = num_data
+        if num_clouds is None:
+            num_clouds = int(data_fraction * dataset_manager.num_data)
+        elif num_clouds > dataset_manager.num_data:
+            num_clouds = dataset_manager.num_data
+
         _, self.point_clouds, self.label = dataset_manager.load_numpy_pointcloud(
-            num_clouds=int(data_fraction * dataset_manager.num_data),
+            num_clouds=num_clouds,
             num_points=2 * num_points,
             augmentations=augmentations,
             outputs_at=outputs_at,
@@ -78,6 +78,19 @@ class PointCloudDataset(Dataset):
             extra_global_label_names=None)
 
         print("Num data loaded: " + str(len(self.point_clouds)))
+
+        # print("removing all labels with > 1.5")
+        # keep_indices = []
+        # for i in range(len(self.label)):
+        #     if (self.label[i, :] > 1.5).any():
+        #         continue
+        #     keep_indices.append(i)
+        # original_length = len(self.label)
+        # self.point_clouds = self.point_clouds[keep_indices]
+        # self.label = self.label[keep_indices]
+        # new_length = len(self.label)
+        # print("Removed", original_length - new_length, "> 1.5 values.")
+
 
         if remove_outlier_ratio > 0.0:
             if outputs_at == "global":

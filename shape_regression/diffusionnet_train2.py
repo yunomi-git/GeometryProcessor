@@ -41,7 +41,8 @@ input_append_global_label_names = [
     # "nz"
 ]
 
-aggregator = ThicknessThresholdAggregator(warning_thickness=0.02, failure_thickness=0.05)
+# aggregator = ThicknessThresholdAggregator(warning_thickness=0.02, failure_thickness=0.05)
+aggregator = None
 aggregator_name = "none"
 if aggregator is not None:
     aggregator_name = aggregator.get_name()
@@ -64,15 +65,15 @@ for aug in augmentations:
     augmentations_string.append(aug.as_string())
 
 model_args = {
-    "input_feature_type": 'xyz', # xyz, hks
+    "input_feature_type": 'hks', # xyz, hks
     "k_eig": 64,
     "additional_dimensions": len(input_append_vertex_label_names) + len(input_append_global_label_names),
     "num_outputs": len(label_names),
-    "C_width": 128,
-    "N_block": 4,
+    "C_width": 1024,
+    "N_block": 5,
     "last_activation": None,
-    "outputs_at": 'global',
-    "mlp_hidden_dims": None,
+    "outputs_at": 'vertices',
+    "mlp_hidden_dims": [512, 256, 128, 64, 32, 16],
     "dropout": True,
     "with_gradient_features": True,
     "with_gradient_rotations": True,
@@ -84,7 +85,7 @@ model_args = {
 experiment_name = succinct_label_save_name(label_names) + aggregator_name
 
 args = {
-    "dataset_name": "DaVinci/train/",
+    "dataset_name": "DrivAerNet/train/",
     "exp_name": experiment_name,
     "label_names": label_names,
     "input_append_vertex_label_names": input_append_vertex_label_names,
@@ -95,7 +96,8 @@ args = {
     "remove_outlier_ratio": 0.0,
 
     # Dataset Param
-    "data_fraction": 0.3,
+    "data_fraction": 1.0,
+    "num_data": None,
     "do_test": True,
     "workers": 24,
     "augment_random_rotate": (model_args["input_feature_type"] == 'xyz'),
@@ -103,16 +105,18 @@ args = {
     # Opt Param
     "batch_size": 1,
     "test_batch_size": 1,
-    "grad_acc_steps": 16,
+    "grad_acc_steps": 128,
     "epochs": 100,
-    "lr": 1e-3,
+    "lr": 1e-2,
     "weight_decay": 1e-5,
 
     "scheduler": "plateau",
     # "restarts": 3,
     # "min_lr": 5e-4,
     "patience": 5,
-    "factor": 0.1
+    "factor": 0.1,
+
+    "notes": "loss_indices_hks"
 }
 
 args.update(model_args)
@@ -126,6 +130,7 @@ if __name__=="__main__":
     train_loader = DataLoader(DiffusionNetDataset(data_root_dir, model_args["k_eig"],
                                                   op_cache_dir=op_cache_dir,
                                                   partition="train",
+                                                  num_data=args["num_data"],
                                                   data_fraction=args["data_fraction"], label_names=label_names,
                                                   augment_random_rotate=args["augment_random_rotate"],
                                                   extra_vertex_label_names=args["input_append_vertex_label_names"],
@@ -142,6 +147,7 @@ if __name__=="__main__":
         test_loader = DataLoader(DiffusionNetDataset(data_root_dir, model_args["k_eig"],
                                                      op_cache_dir=op_cache_dir,
                                                      partition="validation",
+                                                     num_data=args["num_data"],
                                                      data_fraction=args["data_fraction"], label_names=label_names,
                                                      augment_random_rotate=args["augment_random_rotate"],
                                                      extra_vertex_label_names=args["input_append_vertex_label_names"],

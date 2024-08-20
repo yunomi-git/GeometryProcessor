@@ -387,6 +387,9 @@ class DatasetManager:
         for mesh_folder in tqdm(mesh_folders):
             mesh_labels = mesh_folder.load_mesh_with_augmentations(augmentations)
             # Ensure number of points is valid
+            if len(mesh_labels) == 0 or mesh_labels[0] is None:
+                print("Dataset: Mesh " + mesh_folder.mesh_name + " does not have meshes. Skipping")
+                continue
             if len(mesh_labels[0].vertices) < num_points:
                 # print("Dataset: Mesh " + mesh_folder.mesh_name + " does not have enough points " + str(len(mesh_labels[0].vertices)) + " < " + str(num_points) + ". Skipping")
                 continue
@@ -410,7 +413,8 @@ class DatasetManager:
                 permutation = util.get_permutation_for_list(mesh_data.vertices, num_points)
                 mesh_data.vertices = mesh_data.vertices[permutation]
                 mesh_data.augmented_vertices = mesh_data.augmented_vertices[permutation]
-                mesh_data.labels = mesh_data.labels[permutation]
+                if len(mesh_data.labels) > 1:
+                    mesh_data.labels = mesh_data.labels[permutation]
                 # Remove the faces
                 mesh_data.faces = None
 

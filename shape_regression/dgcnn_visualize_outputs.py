@@ -9,18 +9,18 @@ import torch
 import torch.nn as nn
 import trimesh
 import pyvista as pv
+import numpy as np
 
 args = {
     # Dataset Param
     "num_points": 4096,
-    "data_fraction": 0.3,
-    "sampling_method": "even",
+    "data_fraction": 0.1,
     "imbalanced_weighting_bins": 1, #1 means no weighting
-    "remove_outlier_ratio": 0.1, # 0 means remove no outliers
+    "remove_outlier_ratio": 0.0, # 0 means remove no outliers
     "outputs_at": "vertices"
 }
 
-label_names = ["thickness"]
+label_names = ["Thickness"]
 
 device = "cuda"
 
@@ -38,38 +38,43 @@ def comparison(model, dataloader, i):
 
     pl = pv.Plotter(shape=(1, 3))
     pl.subplot(0, 0)
-    actor = pl.add_points(
+    actor1 = pl.add_points(
         cloud,
         scalars=actual.flatten(),
         render_points_as_spheres=True,
         point_size=10,
         show_scalar_bar=True,
         # text="Curvature"
+        stitle="Actual"
     )
     pl.add_text('Actual', color='black')
-    actor.mapper.lookup_table.cmap = 'jet'
+    actor1.mapper.lookup_table.cmap = 'jet'
 
     pl.subplot(0, 1)
-    actor = pl.add_points(
+    actor2 = pl.add_points(
         cloud,
         scalars=preds,
         render_points_as_spheres=True,
         point_size=10,
         show_scalar_bar=True,
+        scalar_bar_args={'title': 'Predictions',
+                         'n_labels': 3}
+
     )
     pl.add_text('Pred', color='black')
-    actor.mapper.lookup_table.cmap = 'jet'
+    actor2.mapper.lookup_table.cmap = 'jet'
 
-    # pl.subplot(0, 2)
-    # actor = pl.add_points(
-    #     cloud,
-    #     scalars=preds - actual.flatten(),
-    #     render_points_as_spheres=True,
-    #     point_size=10,
-    #     show_scalar_bar=True,
-    # )
-    # pl.add_text('Error', color='black')
-    # actor.mapper.lookup_table.cmap = 'jet'
+    pl.subplot(0, 2)
+    actor3 = pl.add_points(
+        cloud,
+        scalars=np.abs(preds - actual.flatten()),
+        render_points_as_spheres=True,
+        point_size=10,
+        show_scalar_bar=True,
+        stitle="Error"
+    )
+    pl.add_text('Error', color='black')
+    actor3.mapper.lookup_table.cmap = 'Reds'
 
     pl.link_views()
     pl.show()
@@ -103,8 +108,7 @@ def show_inference_mesh(model, mesh, count):
 def display_clouds(model, path):
     dataset = PointCloudDataset(path, args['num_points'], label_names=label_names,
                       partition='train',
-                      data_fraction=args["data_fraction"], use_numpy=True,
-                      sampling_method=args["sampling_method"],
+                      data_fraction=args["data_fraction"],
                       outputs_at=args["outputs_at"],
                       imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
                       remove_outlier_ratio=args["remove_outlier_ratio"])
@@ -118,7 +122,7 @@ def display_meshes(model, dataset):
         comparison(model, dataset, i)
 
 if __name__=="__main__":
-    path = paths.CACHED_DATASETS_PATH + "mcb_scale_a/"
+    path = paths.CACHED_DATASETS_PATH + "DrivAerNet/train/"
 
     save_path = paths.select_file(choose_type="folder")
     arg_path = save_path + "args.json"
@@ -132,15 +136,13 @@ if __name__=="__main__":
     checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint)
 
-    dataset = PointCloudDataset(path, model_args['num_points'], label_names=label_names,
+    dataset = PointCloudDataset(path, args['num_points'], label_names=label_names,
                                 append_label_names=model_args['input_append_label_names'],
                                 partition='train',
-                                data_fraction=model_args["data_fraction"],
-                                normalize_outputs=model_args["normalize_outputs"],
-                                sampling_method=model_args["sampling_method"],
-                                outputs_at=model_args["outputs_at"],
-                                imbalance_weight_num_bins=model_args["imbalanced_weighting_bins"],
-                                remove_outlier_ratio=model_args["remove_outlier_ratio"])
+                                data_fraction=args["data_fraction"],
+                                outputs_at=args["outputs_at"],
+                                imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
+                                remove_outlier_ratio=args["remove_outlier_ratio"])
 
     display_meshes(model, dataset)
 

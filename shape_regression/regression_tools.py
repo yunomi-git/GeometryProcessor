@@ -37,10 +37,10 @@ class RegressionTools:
         self.test_loader = test_loader
         self.train_loader = train_loader
 
-        self.loss_criterion = torch.nn.MSELoss()
+        self.loss_criterion = torch.nn.MSELoss(reduction='mean')
 
         self.clip_parameters = clip_parameters
-        self.clip_threshold = 1
+        self.clip_threshold = 1.0
 
         self.include_faces = include_faces
 
@@ -51,12 +51,13 @@ class RegressionTools:
 
         self.args = args
         self.checkpoint_path = ("checkpoints/" + self.dataset_name + "/" + self.model_name + "/" +
-                                util.get_date_name() + "_" + args['exp_name'] + "/")
+                                util.get_date_name() + "_" + args['exp_name'] + "_" + args['notes'] + "/")
 
         print("Saving checkpoints to: ", self.checkpoint_path)
         self.io = self.create_checkpoints(args)
         self.gradient_accumulation_steps = args["grad_acc_steps"]
         self.NUM_PLOT_POINTS = 7500
+        self.default_alpha = 1000.0 / self.NUM_PLOT_POINTS
         # self.io.cprint("Total training data: " + str(self.train_loader.))
 
 
@@ -99,16 +100,15 @@ class RegressionTools:
             else:
                 loss = self.loss_criterion(weight * preds, weight * label)
 
-                if self.clip_parameters:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
-                self.opt.step()
-                self.opt.zero_grad()
+                # TODO Why is this being calculated
+                # if self.clip_parameters:
+                #     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
+                # self.opt.step()
+                # self.opt.zero_grad()
 
             batch_size = data.size()[0]
             count += batch_size
             train_loss += loss.item() * batch_size
-            # train_true.append(label.cpu().numpy())
-            # train_pred.append(preds.detach().cpu().numpy())
 
             label = label.cpu().numpy()
             preds = preds.detach().cpu().numpy()
@@ -123,6 +123,8 @@ class RegressionTools:
         return train_loss, count, train_pred, train_true
 
     def get_evaluations_mesh(self, training=True):
+        R2_SAMPLES = 4096
+
         train_loss = 0.0
         count = 0.0
         if training:
@@ -141,7 +143,7 @@ class RegressionTools:
             vertices, faces, label = vertices.to(self.device), faces.to(self.device), label.to(self.device)
             # weight = weight.to(self.device)
             # weight = torch.sqrt(weight)
-            weight = 1
+            weight = 1.0
 
             try:
                 preds = self.model(vertices, faces)
@@ -151,23 +153,25 @@ class RegressionTools:
                 continue
 
             if training:
-                loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
+                if len(label.shape) == 3:
+                    # TODO note this assumes batch size 1
+                    loss_indices = util.get_permutation_for_list(preds[0], 4096)
+                    loss = self.loss_criterion(weight * preds[:, loss_indices, :],
+                                               weight * label[:, loss_indices, :]) / self.gradient_accumulation_steps
+
+                else:
+                    loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
                 loss.backward()
 
                 if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
+                    # print(batch_idx)
                     if self.clip_parameters:
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
                     self.opt.step()
                     self.opt.zero_grad()
             else:
+                # TODO this assumes all vertex lengths are equal
                 loss = self.loss_criterion(weight * preds, weight * label)
-                # TODO why is the following getting calculated?
-                # loss.backward()
-
-                if self.clip_parameters:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
-                self.opt.step()
-                self.opt.zero_grad()
 
             batch_size = vertices.size()[0]
             count += batch_size
@@ -184,6 +188,11 @@ class RegressionTools:
             if len(label.shape) == 3:
                 label = label.reshape((label.shape[0] * label.shape[1], label.shape[2]), order="F")
                 preds = preds.reshape((preds.shape[0] * preds.shape[1], preds.shape[2]), order="F")
+                # TODO These all have different shapes!!
+                # TODO below assumes batch size 1
+                # r2_indices = np.arange(start=0, stop=len(preds), step=int(np.ceil(len(preds) / R2_SAMPLES)), dtype=np.int64)
+                # label = label[r2_indices]
+                # preds = preds[r2_indices]
 
             train_true.append(label)
             train_pred.append(preds)
@@ -296,9 +305,9 @@ class RegressionTools:
 
 
     def save_r2(self, phase, epoch, r2_list, true_list, pred_list, labels):
-        # plt.figure(0)
-        # plt.clf()
         # fig, axes = plt.subplots(len(r2_list), 1)
+        # if len(r2_list) == 1:
+        #     axes = [axes]
         # for i in range(len(r2_list)):
         #     ax = axes[i]
         #     self.plot_r2_on_ax(ax, phase=phase, true=true_list[:, i], pred = pred_list[:, i], label=labels[i])
@@ -311,25 +320,7 @@ class RegressionTools:
             plot_indices = np.arange(start=0, stop=len(true), step=int(np.ceil(len(true) / self.NUM_PLOT_POINTS)),
                                      dtype=np.int64)
             fig = self.create__r2_kde_fig(phase=phase, true=true[plot_indices], pred=pred[plot_indices], label=labels[i])
-            # fig.tight_layout()
             fig.savefig(self.checkpoint_path + "images/" + phase + '_confusion_' + labels[i] + "_" + str(epoch) + '.png')
-
-        # plt.figure(0)
-        # plt.clf()
-        # for i in range(len(r2_list)):
-        #     plt.subplot(len(r2_list), 1, i + 1)
-        #     error = pred_list[:, i] - true_list[:, i]
-        #     true_list = true_list[:, i]
-        #
-        #     plot_indices = np.arange(start=0, stop=len(error), step=int(np.ceil(len(error) / self.NUM_PLOT_POINTS)),
-        #                              dtype=np.int64)
-        #
-        #     plt.scatter(true_list[plot_indices], error[plot_indices], alpha=0.15)
-        #     plt.hlines(y=0, xmin=min(true_list), xmax=max(true_list), color="red")
-        #     plt.xlabel(phase + " True")
-        #     plt.ylabel(labels[i] + " Error")
-        #
-        # plt.savefig(self.checkpoint_path + "images/" + phase + '_confusion_' + str(epoch) + '.png')
 
     def plot_r2_on_ax(self, ax, phase, true, pred, label):
         error = pred - true
@@ -337,10 +328,10 @@ class RegressionTools:
         # plot_indices = np.arange(start=0, stop=len(error), step=int(np.ceil(len(error) / self.NUM_PLOT_POINTS)),
         #                          dtype=np.int64)
 
-        ax.scatter(true, error, alpha=0.15)
+        ax.scatter(true, error, alpha=self.default_alpha)
         ax.hlines(y=0, xmin=min(true), xmax=max(true), color="red")
-        ax.set_xlabel(phase + " True")
-        ax.set_ylabel(label + " Error")
+        ax.set_xlabel(phase + " True", fontsize=18)
+        ax.set_ylabel(label + " Error", fontsize=18)
 
     def create__r2_kde_fig(self, phase, true, pred, label, ratio=5):
         # TODO need to sample from pred and true
@@ -401,35 +392,38 @@ class RegressionTools:
         timer = Stopwatch()
         timer.start()
 
-        plt.figure(2)
-        plt.clf()
+        fig, axes = plt.subplots(len(labels), 1)
+        if len(labels) == 1:
+            axes = [axes]
+        fig.set_size_inches(8, 6)
 
         for i in range(len(labels)):
-            plt.subplot(len(labels), 1, i + 1)
+            ax = axes[i]
+            # ax.subplot(len(labels), 1, i + 1)
             train_res_history = np.array(res_train_history)
-            plt.plot(train_res_history[:, i], label='train')
+            ax.plot(train_res_history[:, i], label='train')
 
             if res_test_history is not None:
                 test_res_history = np.array(res_test_history)
                 plt.plot(test_res_history[:, i], label='test')
 
-            plt.ylabel(labels[i] + " Train R2")
-            plt.xlabel("Epoch")
-            plt.legend()
-            plt.grid(visible=True, which='major', axis='y')
+            ax.set_ylabel(labels[i] + " Train R2")
+            ax.set_xlabel("Epoch")
+            ax.legend()
+            ax.grid(visible=True, which='major', axis='y')
 
-        plt.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
+        fig.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
 
-        plt.figure(1)
-        plt.clf()
-        plt.plot(loss_train_history, label='train')
+        fig, ax = plt.subplots()
+        fig.set_size_inches(8, 6)
+        ax.plot(loss_train_history, label='train')
         if loss_test_history is not None:
-            plt.plot(loss_test_history, label='test')
+            ax.plot(loss_test_history, label='test')
 
-        plt.ylabel("Loss")
-        plt.xlabel("Epoch")
-        plt.legend()
-        plt.savefig(self.checkpoint_path + "images/" + 'loss.png')
+        ax.set_ylabel("Loss")
+        ax.set_xlabel("Epoch")
+        ax.legend()
+        fig.savefig(self.checkpoint_path + "images/" + 'loss.png')
         # print("Time to save figures: ", timer.get_time())
 
 

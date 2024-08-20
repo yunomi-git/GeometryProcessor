@@ -28,7 +28,7 @@ def mesh_is_valid_diffusion(verts, faces):
 
 class DiffusionNetDataset(Dataset):
     def __init__(self, data_root_dir, k_eig, outputs_at, partition, augmentations: str | List[Augmentation] = "none",
-                 op_cache_dir=None, data_fraction=1.0, label_names=None,
+                 op_cache_dir=None, data_fraction=1.0, num_data=None, label_names=None,
                  extra_vertex_label_names=None, extra_global_label_names=None,
                  augment_random_rotate=True, cache_operators=True,
                  remove_outlier_ratio=0.0, aggregator: VertexAggregator=None):
@@ -53,9 +53,13 @@ class DiffusionNetDataset(Dataset):
         label_names = label_names
 
         # Open the base directory and get the contents
-        num_files = len(file_manager.mesh_folder_names)
-        num_file_to_use = int(data_fraction * num_files)
-        mesh_folders = file_manager.get_mesh_folders(num_file_to_use)
+        num_files_to_use = num_data
+        if num_files_to_use is None:
+            num_files_to_use = int(data_fraction * file_manager.num_data)
+        elif num_data > file_manager.num_data:
+            num_files_to_use = file_manager.num_data
+
+        mesh_folders = file_manager.get_mesh_folders(num_files_to_use)
 
         print("loading augmentations: ")
         print(self.augmentations)
@@ -75,12 +79,17 @@ class DiffusionNetDataset(Dataset):
 
                 verts = mesh_data.vertices
                 aug_verts = mesh_data.augmented_vertices
-                label = self.aggregator.aggregate(mesh_data.labels)
+                label = mesh_data.labels
+                if self.aggregator is not None:
+                    label = self.aggregator.aggregate(label)
                 faces = mesh_data.faces
 
                 if len(verts) > 1e6:
                     print("NOTE: dataset is removing nverts > 1e6")
                     continue
+                # if len(verts) < 3000:
+                #     print("NOTE: dataset is removing nverts > 1e6")
+                #     continue
                 # if (label > 1.0).any(): # TODO remove this
                 #     print("NOTE: dataset is removing any labels > 1.0")
                 #     continue
@@ -152,82 +161,6 @@ class DiffusionNetDataset(Dataset):
 
         return verts, faces, label
 
-# class DiffusionNetDatasetOld(Dataset):
-#     def __init__(self, data_root_dir, k_eig, filter_criteria=None,
-#                  op_cache_dir=None, data_fraction=1.0, label_names=None,
-#                  augment_random_rotate=True, is_training=True):
-#         self.root_dir = data_root_dir
-#         # self.split_size = split_size  # pass None to take all entries (except those in exclude_dict)
-#         self.k_eig = k_eig
-#         self.k_eig_list = []
-#         self.op_cache_dir = op_cache_dir
-#
-#         self.entries = {}
-#
-#         self.augment_random_rotate = augment_random_rotate
-#         self.is_training = is_training
-#
-#         file_manager = MeshDatasetFileManager(data_root_dir)
-#         # self.all_meshes = []
-#         self.all_faces = []
-#         self.all_vertices = []
-#         self.all_labels = []
-#         label_names = label_names
-#
-#         # Open the base directory and get the contents
-#         data_files = file_manager.get_target_files(absolute=True)
-#         num_files = len(data_files)
-#         num_file_to_use = int(data_fraction * num_files)
-#         data_files = np.random.choice(data_files, size=num_file_to_use, replace=False)
-#
-#         # Now parse through all the files
-#         for data_file in tqdm(data_files):
-#             mesh, instances = file_manager.get_mesh_and_instances_from_target_file(data_file)
-#             for instance_data in instances:
-#                 if not filter_criteria(mesh, instance_data):
-#                     continue
-#
-#                 mesh = get_augmented_mesh(mesh, instance_data)
-#                 mesh_aux = trimesh_util.MeshAuxilliaryInfo(mesh)
-#                 verts = torch.tensor(mesh_aux.vertices).float()
-#                 faces = torch.tensor(mesh_aux.faces)
-#
-#                 # Attempt to get eigen decomposition. If cannot, skip
-#                 try:
-#                     diffusion_net.geometry.get_operators(verts, faces, k_eig=self.k_eig, op_cache_dir=self.op_cache_dir)
-#                     # frames, mass, L, evals, evecs, gradX, gradY = diffusion_net.geometry.get_operators(verts, faces,
-#                     #                                                                                    k_eig=self.k_eig,
-#                     #                                                                                    op_cache_dir=self.op_cache_dir)
-#                 except:  # Or valueerror or ArpackError
-#                     continue
-#
-#                 if not torch.isfinite(verts) or not torch.isfinite(faces):
-#                     continue
-#
-#                 label = np.array([instance_data[label_name] for label_name in label_names])
-#
-#                 self.all_faces.append(faces)
-#                 self.all_vertices.append(verts)
-#                 self.all_labels.append(label)
-#
-#     def __len__(self):
-#         return len(self.all_labels)
-#
-#     def __getitem__(self, idx):
-#         # mesh_data = self.all_meshes[idx]
-#         verts = self.all_vertices[idx]
-#         faces = self.all_faces[idx]
-#         label = self.all_labels[idx] # TODO convert to float here?
-#
-#         # Already occuring
-#         # mesh_data.to(self.device)
-#         # TODO convert mesh data to device?
-#         # TODO data gets permuted after batch
-#         # Randomly rotate positions
-#         if self.augment_random_rotate and self.is_training:
-#             verts = diffusion_net.utils.random_rotate_points(verts)
-#
-#         return verts, faces, label
 
 class DiffusionNetWrapper(nn.Module):
     def __init__(self, model_args, op_cache_dir, device):
