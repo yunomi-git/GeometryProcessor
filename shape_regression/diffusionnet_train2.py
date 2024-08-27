@@ -65,15 +65,15 @@ for aug in augmentations:
     augmentations_string.append(aug.as_string())
 
 model_args = {
-    "input_feature_type": 'hks', # xyz, hks
+    "input_feature_type": 'xyz', # xyz, hks
     "k_eig": 64,
     "additional_dimensions": len(input_append_vertex_label_names) + len(input_append_global_label_names),
     "num_outputs": len(label_names),
-    "C_width": 1024,
-    "N_block": 5,
+    "C_width": 512,
+    "N_block": 4,
     "last_activation": None,
     "outputs_at": 'vertices',
-    "mlp_hidden_dims": [512, 256, 128, 64, 32, 16],
+    "mlp_hidden_dims": [512, 256],
     "dropout": True,
     "with_gradient_features": True,
     "with_gradient_rotations": True,
@@ -94,6 +94,7 @@ args = {
     "seed": 0,
     "augmentations": "none",
     "remove_outlier_ratio": 0.0,
+    "use_imbalanced_weights": True,
 
     # Dataset Param
     "data_fraction": 1.0,
@@ -116,7 +117,7 @@ args = {
     "patience": 5,
     "factor": 0.1,
 
-    "notes": "loss_indices_hks"
+    "notes": "imbalanced_weights"
 }
 
 args.update(model_args)
@@ -136,6 +137,7 @@ if __name__=="__main__":
                                                   extra_vertex_label_names=args["input_append_vertex_label_names"],
                                                   extra_global_label_names=args["input_append_global_label_names"],
                                                   outputs_at=args["outputs_at"],
+                                                  use_imbalanced_weights=args["use_imbalanced_weights"],
                                                   augmentations=args["augmentations"],
                                                   remove_outlier_ratio=args["remove_outlier_ratio"],
                                                   cache_operators=cache_operators,
@@ -153,6 +155,7 @@ if __name__=="__main__":
                                                      extra_vertex_label_names=args["input_append_vertex_label_names"],
                                                      extra_global_label_names=args["input_append_global_label_names"],
                                                      outputs_at=args["outputs_at"],
+                                                     use_imbalanced_weights=args["use_imbalanced_weights"],
                                                      augmentations=args["augmentations"],
                                                      remove_outlier_ratio=args["remove_outlier_ratio"],
                                                      aggregator=aggregator),

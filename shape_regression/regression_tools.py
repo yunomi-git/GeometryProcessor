@@ -13,17 +13,22 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from matplotlib import gridspec
 from scipy import stats
-
+import pandas as pd
+import seaborn as sn
+from sklearn.metrics import confusion_matrix
 
 class RegressionTools:
     def __init__(self, args, label_names, train_loader, test_loader, model, opt, scheduler=None, clip_parameters=False,
                  include_faces=False):
         torch.cuda.empty_cache()
         self.device = torch.device("cuda")
-        # self.seed_all(args["seed"])
 
         self.dataset_name = args["dataset_name"]
         self.model_name = type(model).__name__
+
+        self.do_classification = False
+        if args["use_category_thresholds"] is not None:
+            self.do_classification = True
 
         if "data_parallel" in args and not args["data_parallel"]:
             self.model = model.to(self.device)
@@ -37,7 +42,17 @@ class RegressionTools:
         self.test_loader = test_loader
         self.train_loader = train_loader
 
-        self.loss_criterion = torch.nn.MSELoss(reduction='mean')
+        if self.do_classification:
+            self.num_classes = len(args["use_category_thresholds"]) + 1
+            # create weights here
+            weights = None
+            if self.train_loader.dataset.imbalanced_weighting is not None:
+                imbalanced_weighting = self.train_loader.dataset.imbalanced_weighting
+                weights = imbalanced_weighting.get_weights(np.arange(0, self.num_classes, step=1))
+            self.loss_criterion = torch.nn.CrossEntropyLoss(torch.Tensor(weights).to(self.device))
+        else:
+            self.loss_criterion = torch.nn.MSELoss(reduction='mean')
+
 
         self.clip_parameters = clip_parameters
         self.clip_threshold = 1.0
@@ -58,8 +73,9 @@ class RegressionTools:
         self.gradient_accumulation_steps = args["grad_acc_steps"]
         self.NUM_PLOT_POINTS = 7500
         self.default_alpha = 1000.0 / self.NUM_PLOT_POINTS
-        # self.io.cprint("Total training data: " + str(self.train_loader.))
 
+        # self.io.cprint("Total training data: " + str(self.train_loader.))
+        print("Parameters in model: ", get_num_parameters(self.model))
 
     def create_checkpoints(self, args):
         Path(self.checkpoint_path + 'models/').mkdir(parents=True, exist_ok=True)
@@ -74,7 +90,10 @@ class RegressionTools:
     def get_evaluations_pointcloud(self, training=True):
         train_loss = 0.0
         count = 0.0
-        self.model.train()
+        if training:
+            self.model.train()
+        else:
+            self.model.eval()
         self.opt.zero_grad()
         train_pred = []
         train_true = []
@@ -82,14 +101,31 @@ class RegressionTools:
             data_loader = self.train_loader
         else:
             data_loader = self.test_loader
-        for batch_idx, (data, label, weight) in enumerate(tqdm(data_loader)):
+        for batch_idx, (data, label) in enumerate(tqdm(data_loader)):
+            # calculate weights if appropriate
+            weight = 1
+            if data_loader.dataset.imbalanced_weighting is not None:
+                weight = data_loader.dataset.imbalanced_weighting.get_weights(label.numpy())
+                weight = torch.Tensor(weight)
+                weight = weight.to(self.device)
+
             data, label = data.to(self.device), label.to(self.device)
-            weight = weight.to(self.device)
-            weight = torch.sqrt(weight)
 
             preds = self.model(data)
+
+            if self.do_classification:
+                loss_labels = label.long()
+                loss_preds = preds.clone()
+                if len(label.shape) == 3:
+                    loss_labels = loss_labels.reshape((label.shape[0] * label.shape[1]))
+                    loss_preds = loss_preds.reshape((preds.shape[0] * preds.shape[1], preds.shape[2]))
+                # Note: weight is already incorporated into the loss for classification
+            else:
+                loss_labels = weight * label
+                loss_preds = weight * preds
+
             if training:
-                loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
+                loss = self.loss_criterion(loss_preds, loss_labels) / self.gradient_accumulation_steps
                 loss.backward()
 
                 if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
@@ -98,13 +134,7 @@ class RegressionTools:
                     self.opt.step()
                     self.opt.zero_grad()
             else:
-                loss = self.loss_criterion(weight * preds, weight * label)
-
-                # TODO Why is this being calculated
-                # if self.clip_parameters:
-                #     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
-                # self.opt.step()
-                # self.opt.zero_grad()
+                loss = self.loss_criterion(loss_preds, loss_labels)
 
             batch_size = data.size()[0]
             count += batch_size
@@ -117,14 +147,17 @@ class RegressionTools:
                 label = label.reshape((label.shape[0] * label.shape[1], label.shape[2]), order="F")
                 preds = preds.reshape((preds.shape[0] * preds.shape[1], preds.shape[2]), order="F")
 
+            # convert for classification
+            if self.do_classification:
+                preds = np.argmax(preds, axis=-1)
+                preds = preds[..., np.newaxis]
+
             train_true.append(label)
             train_pred.append(preds)
 
         return train_loss, count, train_pred, train_true
 
     def get_evaluations_mesh(self, training=True):
-        R2_SAMPLES = 4096
-
         train_loss = 0.0
         count = 0.0
         if training:
@@ -140,10 +173,13 @@ class RegressionTools:
         else:
             data_loader = self.test_loader
         for batch_idx, (vertices, faces, label) in enumerate(tqdm(data_loader)):
-            vertices, faces, label = vertices.to(self.device), faces.to(self.device), label.to(self.device)
-            # weight = weight.to(self.device)
-            # weight = torch.sqrt(weight)
             weight = 1.0
+            if data_loader.dataset.imbalanced_weighting is not None:
+                weight = data_loader.dataset.imbalanced_weighting.get_weights(label.numpy())
+                weight = torch.Tensor(weight)
+                weight = weight.to(self.device)
+
+            vertices, faces, label = vertices.to(self.device), faces.to(self.device), label.to(self.device)
 
             try:
                 preds = self.model(vertices, faces)
@@ -152,12 +188,17 @@ class RegressionTools:
                 print(e)
                 continue
 
+            # if self.do_classification:
+            #     preds = torch.argmax(preds)
+
             if training:
                 if len(label.shape) == 3:
                     # TODO note this assumes batch size 1
-                    loss_indices = util.get_permutation_for_list(preds[0], 4096)
-                    loss = self.loss_criterion(weight * preds[:, loss_indices, :],
-                                               weight * label[:, loss_indices, :]) / self.gradient_accumulation_steps
+                    loss = self.loss_criterion(weight * preds,
+                                               weight * label) / self.gradient_accumulation_steps
+                    # loss_indices = util.get_permutation_for_list(preds[0], 4096)
+                    # loss = self.loss_criterion(weight * preds[:, loss_indices, :],
+                    #                            weight * label[:, loss_indices, :]) / self.gradient_accumulation_steps
 
                 else:
                     loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
@@ -170,7 +211,7 @@ class RegressionTools:
                     self.opt.step()
                     self.opt.zero_grad()
             else:
-                # TODO this assumes all vertex lengths are equal
+                # TODO this assumes all vertex lengths are equal or batch size 1
                 loss = self.loss_criterion(weight * preds, weight * label)
 
             batch_size = vertices.size()[0]
@@ -203,8 +244,10 @@ class RegressionTools:
         best_res_mag = 0
         loss_train_history = []
         res_train_history = []
+        acc_train_history = []
         loss_test_history = []
         res_test_history = []
+        acc_test_history = []
         labels = args["label_names"]
         for epoch in range(args['epochs']):
             print(datetime.now())
@@ -221,8 +264,8 @@ class RegressionTools:
                     train_loss, count, train_pred, train_true = self.get_evaluations_mesh(training=True)
 
             train_true = np.concatenate(train_true)
-            # train_true = np.nan_to_num(train_true) # TODO this may not be the best option
             train_pred = np.concatenate(train_pred)
+            train_pred = np.nan_to_num(train_pred) # TODO this may not be the best option
 
             if self.scheduler is not None:
                 if self.args["scheduler"] == "plateau":
@@ -233,20 +276,26 @@ class RegressionTools:
             res_train = metrics.r2_score(y_true=train_true, y_pred=train_pred, multioutput='raw_values') #num_val x dims
             acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.05)
 
-            outstr = ('========\nTrain Epoch: %d '
-                      '\n\tLoss: %.6f '
-                      '\n\tr2: %s '
-                      '\n\tlr: %s '
-                      '\n\tacc: %s' %
-                      (epoch,
-                       train_loss * 1.0 / count,
-                       str(res_train),
-                       self.opt.param_groups[0]['lr'],
-                       str(acc)))
+            outstr = '========\nTrain Epoch:' + str(epoch)
+            outstr += '\n\tLoss: ' + str(test_loss * 1.0 / count)
+            outstr += '\n\tr2: ' + str(res_train)
+            outstr += '\n\tacc: ' + str(acc)
+            outstr += '\n\tlr: ' + str(self.opt.param_groups[0]['lr'])
+            # outstr = ('========\nTrain Epoch: %d '
+            #           '\n\tLoss: %.6f '
+            #           '\n\tr2: %s '
+            #           '\n\tlr: %s '
+            #           '\n\tacc: %s' %
+            #           (epoch,
+            #            train_loss * 1.0 / count,
+            #            str(res_train),
+            #            self.opt.param_groups[0]['lr'],
+            #            str(acc)))
             self.io.cprint(outstr)
 
             loss_train_history.append(train_loss * 1.0 / count)
             res_train_history.append(res_train)
+            acc_train_history.append(acc)
 
             ####################
             # Test
@@ -260,17 +309,26 @@ class RegressionTools:
                     else:
                         test_loss, count, test_pred, test_true = self.get_evaluations_mesh(training=False)
 
+
                 test_true = np.concatenate(test_true)
                 test_pred = np.concatenate(test_pred)
+                test_pred = np.nan_to_num(test_pred)  # TODO this may not be the best option
+
 
                 res_test = metrics.r2_score(y_true=test_true, y_pred=test_pred, multioutput='raw_values')
-                outstr = ('--\n\tTest: \n\t\tLoss: %.6f \n\t\tr2: %s\n=========' %
-                          (test_loss * 1.0 / count, str(res_test)))
+                acc_test = get_accuracy_tolerance(preds=test_pred, actual=test_true, tolerance=0.05)
+
+                outstr = '--\n\tTest:'
+                outstr += '\n\t\tLoss: ' + str(test_loss * 1.0 / count)
+                outstr += '\n\t\tr2: ' + str(res_test)
+                outstr += '\n\t\tacc: ' + str(acc_test)
                 self.io.cprint(outstr)
 
-
+                # ('--\n\tTest: \n\t\tLoss: %.6f \n\t\tr2: %s\n=========' %
+                #  (test_loss * 1.0 / count, str(res_test)))
                 loss_test_history.append(train_loss * 1.0 / count)
                 res_test_history.append(res_test)
+                acc_test_history.append(acc_test)
 
             # Logging
             if (plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0) or epoch + 1 == args['epochs']:
@@ -284,12 +342,20 @@ class RegressionTools:
                 print("Time to save figures: ", timer.get_time())
 
             if do_test:
-                self.save_loss(labels=labels,
-                               res_train_history=res_train_history, loss_train_history=loss_train_history,
-                               res_test_history=res_test_history, loss_test_history=loss_test_history)
+                if self.do_classification:
+                    self.save_history_per_label(labels=labels, name="Accuracy",
+                                                train_history=acc_train_history, test_history=acc_test_history)
+                else:
+                    self.save_history_per_label(labels=labels, name="R2",
+                                                train_history=res_train_history, test_history=res_test_history)
+                self.save_history(name="Loss",
+                                    train_history=loss_train_history, test_history=loss_test_history)
             else:
-                self.save_loss(labels=labels,
-                               res_train_history=res_train_history, loss_train_history=loss_train_history)
+                if self.do_classification:
+                    self.save_history_per_label(labels=labels, name="Accuracy", train_history=acc_train_history)
+                else:
+                    self.save_history_per_label(labels=labels, name="R2", train_history=res_train_history)
+                self.save_history(name="Loss", train_history=loss_train_history)
 
             # Save Checkpoint
             if do_test:
@@ -319,21 +385,29 @@ class RegressionTools:
             pred = pred_list[:, i]
             plot_indices = np.arange(start=0, stop=len(true), step=int(np.ceil(len(true) / self.NUM_PLOT_POINTS)),
                                      dtype=np.int64)
-            fig = self.create__r2_kde_fig(phase=phase, true=true[plot_indices], pred=pred[plot_indices], label=labels[i])
+            fig = self.create_r2_kde_fig(phase=phase, true=true[plot_indices], pred=pred[plot_indices], label=labels[i])
             fig.savefig(self.checkpoint_path + "images/" + phase + '_confusion_' + labels[i] + "_" + str(epoch) + '.png')
 
     def plot_r2_on_ax(self, ax, phase, true, pred, label):
         error = pred - true
-
         # plot_indices = np.arange(start=0, stop=len(error), step=int(np.ceil(len(error) / self.NUM_PLOT_POINTS)),
         #                          dtype=np.int64)
-
         ax.scatter(true, error, alpha=self.default_alpha)
         ax.hlines(y=0, xmin=min(true), xmax=max(true), color="red")
         ax.set_xlabel(phase + " True", fontsize=18)
         ax.set_ylabel(label + " Error", fontsize=18)
 
-    def create__r2_kde_fig(self, phase, true, pred, label, ratio=5):
+    def plot_confusion_matrix_on_ax(self, ax, true, pred, phase, label):
+        # Build confusion matrix
+        classes = np.arange(0, self.num_classes, step=1)
+        cf_matrix = confusion_matrix(true, pred)
+        df_cm = pd.DataFrame(cf_matrix / np.sum(cf_matrix, axis=1)[:, None], index=[i for i in classes],
+                             columns=[i for i in classes])
+        sn.heatmap(df_cm, annot=True, ax=ax)
+        ax.set_xlabel(phase, fontsize=18)
+        ax.set_ylabel(label, fontsize=18)
+
+    def create_r2_kde_fig(self, phase, true, pred, label, ratio=5):
         # TODO need to sample from pred and true
         ##### Instantiate grid ########################
         # Set up 4 subplots and aspect ratios as axis objects using GridSpec:
@@ -374,12 +448,33 @@ class RegressionTools:
         axc.axis('off')  # Hide tick marks and spines
 
         ##### Actually Plot ############################
-        self.plot_r2_on_ax(ax, phase, true, pred, label)
+        if self.do_classification:
+            self.plot_confusion_matrix_on_ax(ax=ax, phase=phase, label=label, true=true, pred=pred)
+        else:
+            self.plot_r2_on_ax(ax, phase, true, pred, label)
 
         kde = stats.gaussian_kde(true)
         xx = np.linspace(xmin, xmax, 1000)
-        axb.plot(xx, kde(xx))
-        axb.fill_between(xx, kde(xx), alpha=0.3)
+        kde_val = kde(xx)
+        axb.plot(xx, kde_val)
+        axb.fill_between(xx, kde_val, alpha=0.3)
+        axb.set_ylabel("KDE") # This isn't showing for some reason
+        axb.set_ylim(0, np.max(kde_val) * 1.1)
+
+        # also plot weights if appropriate
+        if phase == "train":
+            data_loader = self.train_loader
+        else:
+            data_loader = self.test_loader
+        if data_loader.dataset.has_weights:
+            axb2 = axb.twinx()
+            axb2.set_ylabel("Weights")
+            imbalanced_weighting = data_loader.dataset.imbalanced_weighting
+            weights = imbalanced_weighting.get_weights(xx)
+            axb2.set_ylim(0, np.max(weights))
+            axb2.plot(xx, weights, c='orange')
+            axb2.fill_between(xx, weights, color='orange', alpha=0.3)
+
 
         kde = stats.gaussian_kde(error)
         yy = np.linspace(ymin, ymax, 1000)
@@ -387,6 +482,45 @@ class RegressionTools:
         axl.fill_between(kde(yy), yy, alpha=0.3)
 
         return fig
+
+    def save_history_per_label(self, name, labels, train_history, test_history=None):
+        fig, axes = plt.subplots(len(labels), 1)
+        if len(labels) == 1:
+            axes = [axes]
+        fig.set_size_inches(8, 6)
+
+        for i in range(len(labels)):
+            ax = axes[i]
+            # ax.subplot(len(labels), 1, i + 1)
+            train_history = np.array(train_history)
+            ax.plot(train_history[:, i], label='train')
+
+            if test_history is not None:
+                test_history = np.array(test_history)
+                plt.plot(test_history[:, i], label='test')
+
+            ax.set_ylabel(labels[i] + " " + name)
+            ax.set_xlabel("Epoch")
+            ax.legend()
+            ax.grid(visible=True, which='major', axis='y')
+
+        fig.savefig(self.checkpoint_path + "images/" + name + '.png')
+
+    def save_history(self, name, train_history, test_history=None):
+        fig, ax = plt.subplots()
+        fig.set_size_inches(8, 6)
+
+        ax.plot(train_history, label='train')
+
+        ax.plot(test_history, label='test')
+
+        ax.set_ylabel(name)
+        ax.set_xlabel("Epoch")
+        ax.legend()
+        ax.grid(visible=True, which='major', axis='y')
+
+        fig.savefig(self.checkpoint_path + "images/" + name + '.png')
+
 
     def save_loss(self, labels, res_train_history, loss_train_history, res_test_history=None, loss_test_history=None):
         timer = Stopwatch()
@@ -441,6 +575,11 @@ def succinct_label_save_name(label_names):
         out += name[:5] + "-"
     return out
 
+
+def get_num_parameters(model):
+    pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    return pytorch_total_params
+
 def seed_all(seed):
     torch.cuda.empty_cache()
 
@@ -453,7 +592,5 @@ def seed_all(seed):
     torch.backends.cudnn.deterministic = True
     os.environ['PYTHONHASHSEED'] = str(seed) # What is this?
     os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE" # What is this?
-
-
 
 

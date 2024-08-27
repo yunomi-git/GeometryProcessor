@@ -91,22 +91,6 @@ def non_outlier_indices_vertices_nclass(data, num_bins, threshold_ratio_to_remov
         preprocessed_data = data
     else:
         preprocessed_data = sample_equal_vertices_from_list(num_sample=num_sample, data_list=data)
-        # preprocessed_data = []
-        # print("Preprocessing Data")
-        # for cloud in tqdm(data):
-        #     sampled_cloud = np.zeros((num_sample+2, num_classes))
-        #     # sample num_samples from cloud. if cloud does not contain enough vertices, repeat
-        #     if len(cloud) < num_sample:
-        #         num_repeats = int(np.ceil(num_sample / len(cloud)))
-        #         cloud = np.repeat(cloud, num_repeats, axis=0)
-        #     np.random.shuffle(cloud)
-        #     # also add min and max
-        #     sampled_cloud[0] = np.min(cloud, axis=0)
-        #     sampled_cloud[1] = np.max(cloud, axis=0)
-        #     sampled_cloud[2:] = cloud[:num_sample]
-        #     preprocessed_data.append(sampled_cloud)
-        # preprocessed_data = np.stack(preprocessed_data)
-    # at this point, preprocessed_data is an np array [data x vertices x c]
 
     is_not_outlier_per_class = np.array([is_not_outlier_vertices_1class(preprocessed_data[:, :, i], num_bins, threshold_ratio_to_remove) for i in range(num_classes)]) # class x data
     is_not_outlier = np.all(is_not_outlier_per_class, axis=0) # data

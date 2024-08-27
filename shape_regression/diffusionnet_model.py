@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import util
-from dataset.process_and_save import MeshDatasetFileManager, get_augmented_mesh
+from dataset.imbalanced_data_2 import ImbalancedWeightingKde, ImbalancedWeightingNd, sample_equal_vertices_from_list
 from torch.utils.data import Dataset
 import diffusion_net
 from tqdm import tqdm
@@ -30,7 +29,7 @@ class DiffusionNetDataset(Dataset):
     def __init__(self, data_root_dir, k_eig, outputs_at, partition, augmentations: str | List[Augmentation] = "none",
                  op_cache_dir=None, data_fraction=1.0, num_data=None, label_names=None,
                  extra_vertex_label_names=None, extra_global_label_names=None,
-                 augment_random_rotate=True, cache_operators=True,
+                 augment_random_rotate=True, cache_operators=True, use_imbalanced_weights=False,
                  remove_outlier_ratio=0.0, aggregator: VertexAggregator=None):
         self.root_dir = data_root_dir
         self.k_eig = k_eig
@@ -140,6 +139,16 @@ class DiffusionNetDataset(Dataset):
             new_length = len(self.all_labels)
             print("Time to remove outliers:", timer.get_time())
             print("Removed", original_length - new_length, "outliers.")
+
+        self.imbalanced_weighting = None
+        if use_imbalanced_weights:
+            if self.outputs_at == "vertices":
+                labels_concatenated = sample_equal_vertices_from_list(num_sample=1024, data_list=self.all_labels)
+                labels_concatenated = np.concatenate(labels_concatenated, axis=1)
+                self.imbalanced_weighting = ImbalancedWeightingNd(labels_concatenated)
+            else:
+                # if global
+                self.imbalanced_weighting = ImbalancedWeightingNd(self.all_labels)
 
 
 

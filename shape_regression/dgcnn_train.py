@@ -11,10 +11,9 @@ from shape_regression.pointcloud_dataloader import PointCloudDataset
 torch.cuda.empty_cache()
 
 label_names = [
-    # "surface_area"
-    # "thickness",
-    # "Thickness"
-    "SurfaceArea"
+    "Thickness"
+    # "Volume"
+    # "SurfaceArea"
 ]
 
 input_append_label_names = [
@@ -23,19 +22,30 @@ input_append_label_names = [
     "nz"
 ]
 
+category_thresholds = [0.01, 0.05, 0.1]
+
+num_outputs = len(label_names)
+last_layer = None
+if category_thresholds is not None:
+    num_outputs = len(category_thresholds) + 1
+    last_layer = "softmax"
+
 model_args = {
     "num_points": 2048,
     "input_dims": 3 + len(input_append_label_names),
     "conv_channel_sizes": [128, 128, 256, 512],  # Default: [64, 64, 128, 256] #Mo: [512, 512, 1024]
     "emb_dims": 512,
     "linear_sizes": [1024, 512, 256, 128, 64, 32, 16],  # [512, 256] #Mo: [1024, 512, 256, 128, 64, 32, 16]
-    "num_outputs": len(label_names),
+    "num_outputs": num_outputs,
     "k": 20,
     "dropout": 0.2,
-    "outputs_at": "global"
+    "outputs_at": "vertices",
+    "last_layer": last_layer,
 }
 
 experiment_name = succinct_label_save_name(label_names)
+if category_thresholds is not None:
+    experiment_name += "_CAT"
 
 args = {
     "dataset_name": "DaVinci/train",
@@ -44,20 +54,23 @@ args = {
     "label_names": label_names,
     "input_append_label_names": input_append_label_names,
     "seed": 1,
+    "use_category_thresholds": category_thresholds,
 
     # Dataset Param
     "data_fraction": 0.3,
     "do_test": True,
     "workers": 23,
+    "data_parallel": False,
+    "augmentations": None,
 
-    "imbalanced_weighting_bins": 10, #1 means no weighting
+    "use_imbalanced_weight": True, #1 means no weighting
     "remove_outlier_ratio": 0.0, # 0 means remove no outliers
 
     # Opt Param
     "batch_size": 8,
     "test_batch_size": 32,
     "grad_acc_steps": 4,
-    "epochs": 100,
+    "epochs": 50,
     "lr": 1e-3,
     "weight_decay": 1e-5,
 
@@ -80,10 +93,12 @@ if __name__ == "__main__":
     train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                 append_label_names=args['input_append_label_names'],
                                                 partition='train',
+                                                augmentations=args['augmentations'],
                                                 data_fraction=args["data_fraction"],
                                                 outputs_at=args["outputs_at"],
-                                                imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
-                                                remove_outlier_ratio=args["remove_outlier_ratio"]),
+                                                use_imbalanced_weights=args["use_imbalanced_weight"],
+                                                remove_outlier_ratio=args["remove_outlier_ratio"],
+                                                categorical_thresholds=category_thresholds),
                               num_workers=args["workers"],
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = None
@@ -91,12 +106,14 @@ if __name__ == "__main__":
         test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
                                                    append_label_names=args['input_append_label_names'],
                                                    partition='validation',
+                                                   augmentations=args['augmentations'],
                                                    data_fraction=args["data_fraction"],
                                                    outputs_at=args["outputs_at"],
-                                                   imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
-                                                   remove_outlier_ratio=args["remove_outlier_ratio"]),
+                                                   use_imbalanced_weights=args["use_imbalanced_weight"],
+                                                   remove_outlier_ratio=args["remove_outlier_ratio"],
+                                                   categorical_thresholds=category_thresholds),
                                  num_workers=args["workers"],
-                                 batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
+                                 batch_size=args['test_batch_size'], shuffle=True, drop_last=True)
 
     ### Model ###
     if args["outputs_at"] == "global":

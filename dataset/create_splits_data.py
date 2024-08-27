@@ -1,3 +1,5 @@
+import os.path
+
 import paths
 import sklearn.model_selection
 import json
@@ -42,11 +44,29 @@ def create_splits_file(dataset_path):
             "test": test
         }, f)
 
-def load_mesh_folders_from_split_file(dataset_path, partition):
+def load_mesh_folders_from_split_file(dataset_path, partition, clean=False):
+    if clean:
+        clean_split_file(dataset_path)
     split_file = get_split_file_name_for_dataset(dataset_path)
     with open(split_file, "r") as f:
         splits = json.load(f)
         return splits[partition]
+
+def clean_split_file(dataset_path):
+    split_file = get_split_file_name_for_dataset(dataset_path)
+    with open(split_file, "r") as f:
+        splits = json.load(f)
+
+    partitions = ["train", "validation", "test"]
+    for partition in partitions:
+        valid_folders = []
+        for folder in splits[partition]:
+            if os.path.exists(dataset_path + folder):
+                valid_folders.append(folder)
+        splits[partition] = valid_folders
+
+    with open(split_file, 'w') as f:
+        json.dump(splits, f)
 
 def get_split_file_name_for_dataset(dataset_path):
     last_folder, root_path = get_last_folder_in_path(dataset_path)
@@ -59,5 +79,6 @@ if __name__=="__main__":
     dataset_path = paths.CACHED_DATASETS_PATH + "DaVinci/train/"
     # relative_data_path = "train/"
 
-    create_splits_file(dataset_path)
+    clean_split_file(dataset_path)
+    # create_splits_file(dataset_path)
 

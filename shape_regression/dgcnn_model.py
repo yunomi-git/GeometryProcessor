@@ -29,13 +29,13 @@ def knn(x, k):
     return idx
 
 
-def get_graph_feature(x, k=20, idx=None):
+def get_graph_feature(x, k=20, idx=None, device="cuda"):
     batch_size = x.size(0)
     num_points = x.size(2)
     x = x.view(batch_size, -1, num_points)
     if idx is None:
         idx = knn(x, k=k)  # (batch_size, num_points, k)
-    device = torch.device('cuda')
+    # device = torch.device('cuda')
 
     idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
 
@@ -63,7 +63,7 @@ def get_graph_feature(x, k=20, idx=None):
 # k: 20
 # dropout
 class DGCNN_param(nn.Module):
-    def __init__(self, args: dict):
+    def __init__(self, args: dict, device="cuda"):
         super(DGCNN_param, self).__init__()
         self.conv_channel_sizes = args["conv_channel_sizes"]
         self.linear_sizes = args["linear_sizes"]
@@ -71,9 +71,14 @@ class DGCNN_param(nn.Module):
         self.input_dims = 2 * args["input_dims"]
         self.conv_emb_dims = args["emb_dims"]
         self.output_dim = args["num_outputs"]
+        if args["last_layer"] == "sigmoid":
+            self.last_layer = torch.nn.Sigmoid
+        else:
+            self.last_layer = None
 
         self.args = args
         self.k = args['k']
+        self.device = device
 
         # Add Convolutional Layers
         self.conv_list = nn.ModuleList()
@@ -122,7 +127,7 @@ class DGCNN_param(nn.Module):
         # First do convolutions
         conv_outputs = []
         for conv_layer in self.conv_list:
-            x = get_graph_feature(x, k=self.k)
+            x = get_graph_feature(x, k=self.k, device=self.device)
             x = conv_layer(x)
             x = x.max(dim=-1, keepdim=False)[0]
             conv_outputs.append(x)
@@ -142,6 +147,9 @@ class DGCNN_param(nn.Module):
             x = self.linear_dropout_list[i](x)
         x = self.last_linear_layer(x)
 
+        if self.last_layer is not None:
+            x = self.last_layer(x)
+
         return x
 
 
@@ -153,7 +161,7 @@ class DGCNN_param(nn.Module):
 # k: 20
 # dropout
 class DGCNN_segment(nn.Module):
-    def __init__(self, args: dict):
+    def __init__(self, args: dict, device="cuda"):
         super(DGCNN_segment, self).__init__()
         self.conv_channel_sizes = args["conv_channel_sizes"]
         self.linear_sizes = args["linear_sizes"]
@@ -166,6 +174,7 @@ class DGCNN_segment(nn.Module):
 
         self.args = args
         self.k = args['k']
+        self.device = device
 
         # Add Convolutional Layers
         self.conv_list = nn.ModuleList()
@@ -206,6 +215,13 @@ class DGCNN_segment(nn.Module):
         self.last_mlp_layer = nn.Sequential(nn.Conv1d(prev_layer_size, self.output_dim, kernel_size=1, bias=False))
         # TODO should the last layer be conv2d or conv1d?
 
+        if args["last_layer"] == "sigmoid":
+            self.last_layer = torch.nn.Sigmoid()
+        elif args["last_layer"] == "softmax":
+            self.last_layer = torch.nn.Sequential(torch.nn.ReLU(), torch.nn.Softmax(dim=-1))
+        else:
+            self.last_layer = None
+
     def forward(self, x):
         # x input is as batch x points x features. Convert to batch x features x points
         x = torch.permute(x, (0, 2, 1))
@@ -214,7 +230,7 @@ class DGCNN_segment(nn.Module):
         # First do convolutions
         conv_outputs = []
         for conv_layer in self.conv_list:
-            x = get_graph_feature(x, k=self.k)
+            x = get_graph_feature(x, k=self.k, device=self.device)
             x = conv_layer(x)
             x = x.max(dim=-1, keepdim=False)[0]
             conv_outputs.append(x)
@@ -243,4 +259,7 @@ class DGCNN_segment(nn.Module):
 
         # Output as batch x points x features.
         x = torch.permute(x, (0, 2, 1))
+
+        if self.last_layer is not None:
+            x = self.last_layer(x)
         return x
