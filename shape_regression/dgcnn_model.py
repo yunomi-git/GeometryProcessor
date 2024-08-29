@@ -219,6 +219,8 @@ class DGCNN_segment(nn.Module):
             self.last_layer = torch.nn.Sigmoid()
         elif args["last_layer"] == "softmax":
             self.last_layer = torch.nn.Sequential(torch.nn.ReLU(), torch.nn.Softmax(dim=-1))
+        elif args["last_layer"] == "logsoftmax":
+            self.last_layer = torch.nn.Sequential(torch.nn.ReLU(), torch.nn.LogSoftmax(dim=-1))
         else:
             self.last_layer = None
 

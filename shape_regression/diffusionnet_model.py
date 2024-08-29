@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataset.imbalanced_data_2 import ImbalancedWeightingKde, ImbalancedWeightingNd, sample_equal_vertices_from_list
+from dataset.imbalanced_data_2 import ImbalancedWeightingNd, sample_equal_vertices_from_list
 from torch.utils.data import Dataset
 import diffusion_net
 from tqdm import tqdm
@@ -8,17 +8,14 @@ import numpy as np
 import torch.nn as nn
 from dataset.process_and_save_temp import DatasetManager, Augmentation
 from typing import List
-import json
-import math
-import trimesh
 import torch
-import trimesh_util
+from dataset.categorical import CategoricalMap
 import util
 from dataset.VertexAggregator import VertexAggregator
-
 from diffusion_net.layers import DiffusionNet
 from diffusion_net.geometry import toNP
 from dataset.imbalanced_data import get_imbalanced_weight_nd, non_outlier_indices, non_outlier_indices_vertices_nclass
+
 
 def mesh_is_valid_diffusion(verts, faces):
     verts_np = toNP(verts).astype(np.float64)
@@ -30,7 +27,7 @@ class DiffusionNetDataset(Dataset):
                  op_cache_dir=None, data_fraction=1.0, num_data=None, label_names=None,
                  extra_vertex_label_names=None, extra_global_label_names=None,
                  augment_random_rotate=True, cache_operators=True, use_imbalanced_weights=False,
-                 remove_outlier_ratio=0.0, aggregator: VertexAggregator=None):
+                 remove_outlier_ratio=0.0, aggregator: VertexAggregator=None, categorical_thresholds=None):
         self.root_dir = data_root_dir
         self.k_eig = k_eig
         self.k_eig_list = []
@@ -86,12 +83,6 @@ class DiffusionNetDataset(Dataset):
                 if len(verts) > 1e6:
                     print("NOTE: dataset is removing nverts > 1e6")
                     continue
-                # if len(verts) < 3000:
-                #     print("NOTE: dataset is removing nverts > 1e6")
-                #     continue
-                # if (label > 1.0).any(): # TODO remove this
-                #     print("NOTE: dataset is removing any labels > 1.0")
-                #     continue
 
                 tensor_vert = torch.tensor(verts).float()
                 tensor_face = torch.tensor(faces)
@@ -116,7 +107,6 @@ class DiffusionNetDataset(Dataset):
                     except:  # Or valueerror or ArpackError
                         print("Dataset: Error calculating decomposition. Skipping", mesh_folder.mesh_name, "Recommending manual deletion")
                         continue
-#TODO need a way to sav failed cahing
 
                 self.all_faces.append(faces)
                 self.all_vertices.append(aug_verts)
@@ -140,15 +130,31 @@ class DiffusionNetDataset(Dataset):
             print("Time to remove outliers:", timer.get_time())
             print("Removed", original_length - new_length, "outliers.")
 
+        ## Classification
+        self.categorical_thresholds = categorical_thresholds
+        self.do_classification = False
+        if self.categorical_thresholds is not None:
+            cat_map = CategoricalMap(categorical_thresholds)
+            self.all_labels = cat_map.to_category(self.all_labels)
+            self.do_classification = True
+
+        ## Imbalanced Weighting
         self.imbalanced_weighting = None
         if use_imbalanced_weights:
             if self.outputs_at == "vertices":
-                labels_concatenated = sample_equal_vertices_from_list(num_sample=1024, data_list=self.all_labels)
-                labels_concatenated = np.concatenate(labels_concatenated, axis=1)
-                self.imbalanced_weighting = ImbalancedWeightingNd(labels_concatenated)
+                # data x vertices x dim -> data*vertices x dim
+                labels_concatenated = sample_equal_vertices_from_list(num_sample=256, data_list=self.all_labels)
+                labels_concatenated = np.concatenate(labels_concatenated, axis=0)
+                if len(labels_concatenated) > 10000:
+                    rand_indices = util.get_permutation_for_list(labels_concatenated, 10000)
+                    labels_concatenated = labels_concatenated[rand_indices]
+                self.imbalanced_weighting = ImbalancedWeightingNd(labels_concatenated, do_classification=self.do_classification)
             else:
                 # if global
-                self.imbalanced_weighting = ImbalancedWeightingNd(self.all_labels)
+                self.imbalanced_weighting = ImbalancedWeightingNd(self.all_labels, do_classification=self.do_classification)
+        self.has_weights = False
+        if self.imbalanced_weighting is not None:
+            self.has_weights = True
 
 
 
@@ -179,7 +185,7 @@ class DiffusionNetWrapper(nn.Module):
         num_outputs = model_args["num_outputs"]
         C_width = model_args["C_width"]
         N_block = model_args["N_block"]
-        last_activation = model_args["last_activation"]
+        # last_activation = model_args["last_activation"]
         self.outputs_at = model_args["outputs_at"]
         output_at_to_pass = self.outputs_at
         if output_at_to_pass == "global":
@@ -192,15 +198,24 @@ class DiffusionNetWrapper(nn.Module):
         self.k_eig = model_args["k_eig"]
         self.device = device
 
+        self.last_layer = None
+        if "last_layer" in model_args:
+            if model_args["last_layer"] == "sigmoid":
+                self.last_layer = torch.nn.Sigmoid()
+            elif model_args["last_layer"] == "softmax":
+                self.last_layer = torch.nn.Sequential(torch.nn.ReLU(), torch.nn.LogSoftmax(dim=-1))
+
+
         self.input_feature_type = input_feature_type
         self.op_cache_dir = op_cache_dir
         C_in = {'xyz': 3, 'hks': 16}[self.input_feature_type]
 
         self.wrapped_model = DiffusionNet(C_in=C_in, C_out=num_outputs, C_width=C_width, N_block=N_block,
-                                          last_activation=last_activation, outputs_at=output_at_to_pass,
+                                          outputs_at=output_at_to_pass,
                                           mlp_hidden_dims=mlp_hidden_dims, dropout=dropout,
                                           with_gradient_features=with_gradient_features,
                                           with_gradient_rotations=with_gradient_rotations,
+                                          last_activation=self.last_layer,
                                           diffusion_method=diffusion_method)
 
     def forward(self, verts, faces):
@@ -226,7 +241,7 @@ class DiffusionNetWrapper(nn.Module):
             features = verts
         else:  # self.input_feature_type == 'hks':
             features = diffusion_net.geometry.compute_hks_autoscale(evals, evecs, 16)  # TODO autoscale here
-            # TODO Append extra information here
+            # TODO Append extra labels here if chosen to do so
 
         out = self.wrapped_model.forward(features, mass, L=L, evals=evals, evecs=evecs, gradX=gradX,
                                           gradY=gradY, faces=faces)

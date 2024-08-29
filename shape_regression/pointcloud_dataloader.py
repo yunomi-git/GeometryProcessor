@@ -39,16 +39,11 @@ def load_point_clouds_numpy(data_root_dir, num_points, label_names, append_label
 
 
 def translate_pointcloud(pointcloud):
-    # xyz1 = np.random.uniform(low=2. / 3., high=3. / 2., size=[3])
-    # xyz2 = np.random.uniform(low=-0.2, high=0.2, size=[3])
-
-    # xyz_mult = np.ones(pointcloud.shape[1])
-    # xyz_mult[:3] = np.random.uniform(low=2. / 3., high=3. / 2., size=[3])
-    xyz_add = np.zeros(pointcloud.shape[1])
-    xyz_add[:3] = np.random.uniform(low=-0.2, high=0.2, size=[3])
-
-    # translated_pointcloud = np.add(np.multiply(pointcloud, xyz_mult), xyz_add).astype('float32')
-    translated_pointcloud = np.add(pointcloud, xyz_add).astype('float32')
+    # pointcloud is points x dim
+    xyz_add = np.zeros(pointcloud.shape[-1])
+    xyz_add[:3] = np.random.uniform(low=-0.1, high=0.1, size=[3])
+    translated_pointcloud = pointcloud + xyz_add
+    # translated_pointcloud = np.add(pointcloud, xyz_add).astype('float32')
 
     return translated_pointcloud
 
@@ -57,10 +52,12 @@ def translate_pointcloud(pointcloud):
 class PointCloudDataset(Dataset):
     def __init__(self, data_root_dir, num_points, label_names, partition='train', outputs_at="global",
                  data_fraction=1.0, num_data=None, append_label_names=None, augmentations="all",
-                 use_imbalanced_weights=False, remove_outlier_ratio=0.05, categorical_thresholds=None):
+                 use_imbalanced_weights=False, remove_outlier_ratio=0.05, categorical_thresholds=None, wiggle_position=False):
         self.outputs_at = outputs_at
         timer = util.Stopwatch()
         timer.start()
+
+        self.wiggle_position = wiggle_position
 
         dataset_manager = DatasetManager(dataset_path=data_root_dir, partition=partition)
 
@@ -95,9 +92,11 @@ class PointCloudDataset(Dataset):
             print("Removed", original_length - new_length, "outliers.")
 
         self.categorical_thresholds = categorical_thresholds
+        self.do_classification = False
         if self.categorical_thresholds is not None:
             cat_map = CategoricalMap(categorical_thresholds)
             self.label = cat_map.to_category(self.label)
+            self.do_classification = True
 
         self.imbalanced_weighting = None
         self.has_weights = use_imbalanced_weights
@@ -109,10 +108,10 @@ class PointCloudDataset(Dataset):
                 if len(labels_concatenated) > 10000:
                     rand_indices = util.get_permutation_for_list(labels_concatenated, 10000)
                     labels_concatenated = labels_concatenated[rand_indices]
-                self.imbalanced_weighting = ImbalancedWeightingNd(labels_concatenated)
+                self.imbalanced_weighting = ImbalancedWeightingNd(labels_concatenated, do_classification=self.do_classification)
             else:
                 # if global
-                self.imbalanced_weighting = ImbalancedWeightingNd(self.label)
+                self.imbalanced_weighting = ImbalancedWeightingNd(self.label, do_classification=self.do_classification)
 
         print("Time to load data: ", timer.get_time())
         self.num_points = num_points
@@ -124,6 +123,8 @@ class PointCloudDataset(Dataset):
 
         # Grab random num_points from the point cloud
         if self.partition == 'train':
+            if self.wiggle_position:
+                pointcloud = translate_pointcloud(pointcloud)
             p = np.random.permutation(len(pointcloud))[:self.num_points]
             # pointcloud = translate_pointcloud(pointcloud)
         else:
@@ -137,50 +138,3 @@ class PointCloudDataset(Dataset):
 
     def __len__(self):
         return self.point_clouds.shape[0]
-
-
-
-
-
-
-
-
-
-
-# def load_point_clouds_manual(data_root_dir, num_points, label_names, filter_criteria=None, use_augmentations=True,
-#                              data_fraction=1.0, sampling_method="mixed"):
-#     file_manager = MeshDatasetFileManager(data_root_dir)
-#     all_point_clouds = []
-#     all_label = []
-#     label_names = label_names
-#
-#     # Open the base directory and get the contents
-#     data_files = file_manager.get_target_files(absolute=True)
-#     num_files = len(data_files)
-#     num_file_to_use = int(data_fraction * num_files)
-#     data_files = np.random.choice(data_files, size=num_file_to_use, replace=False)
-#
-#     # Now parse through all the files
-#     for data_file in tqdm(data_files):
-#         # Load the file
-#         mesh, instances = file_manager.get_mesh_and_instances_from_target_file(data_file)
-#         if not use_augmentations:
-#             instances = [instances[0]]  # Only take the default instance
-#
-#         for instance_data in instances:
-#             if not filter_criteria(mesh, instance_data):
-#                 continue
-#
-#             mesh = get_augmented_mesh(mesh, instance_data)
-#             vertices, _ = trimesh.sample.sample_surface(mesh, count=num_points, face_weight=sampling_method)
-#
-#             label = np.array([instance_data[label_name] for label_name in label_names])
-#
-#             all_point_clouds.append(vertices)
-#             all_label.append(label)
-#
-#     print("Total number of point clouds processed: ", len(all_point_clouds))
-#     point_clouds = np.stack(all_point_clouds, axis=0).astype('float32')
-#     label = np.stack(all_label, axis=0).astype('float32')
-#
-#     return point_clouds, label

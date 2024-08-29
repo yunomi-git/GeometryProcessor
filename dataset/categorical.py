@@ -7,10 +7,18 @@ class CategoricalMap:
         self.num_classes = len(thresholds) + 1
 
     def to_category(self, x):
-        # x is a numpy array
-        cat_x = np.zeros_like(x)
-        for cat_i in range(1, self.num_classes):
-            cat_x[x > self.thresholds[cat_i - 1]] = cat_i
+        if isinstance(x, list):
+            cat_x = []
+            for x_item in x:
+                cat_x_item = np.zeros_like(x_item)
+                for cat_i in range(1, self.num_classes):
+                    cat_x_item[x_item > self.thresholds[cat_i - 1]] = cat_i
+                cat_x.append(cat_x_item)
+        else:
+            # x is a numpy array
+            cat_x = np.zeros_like(x)
+            for cat_i in range(1, self.num_classes):
+                cat_x[x > self.thresholds[cat_i - 1]] = cat_i
 
         return cat_x
 

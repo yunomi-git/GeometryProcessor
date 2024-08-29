@@ -32,6 +32,7 @@ def sample_equal_vertices_from_list(num_sample, data_list) -> np.ndarray:
     data_sampled = []
     print("Preprocessing Data")
     for cloud in tqdm(data_list):
+        cloud = cloud.copy()
         sampled_cloud = np.zeros((num_sample + 2, num_classes))
         # sample num_samples from cloud. if cloud does not contain enough vertices, repeat
         if len(cloud) < num_sample:
@@ -47,11 +48,15 @@ def sample_equal_vertices_from_list(num_sample, data_list) -> np.ndarray:
     return data_sampled
 
 class ImbalancedWeightingNd:
-    def __init__(self, data_nd):
+    def __init__(self, data_nd, do_classification=False):
         # data_nd as n x d for d labels per datapoint
         self.imbalanced_weighting_1d_list = []
         for i in range(data_nd.shape[1]):
-            self.imbalanced_weighting_1d_list.append(ImbalancedWeightingKde(data_nd[:, i]))
+            if do_classification:
+                num_classes = int(np.max(data_nd[:, i])) + 1
+                self.imbalanced_weighting_1d_list.append(ImbalancedWeightingClassification(data_nd[:, i], num_classes))
+            else:
+                self.imbalanced_weighting_1d_list.append(ImbalancedWeightingKde(data_nd[:, i]))
 
     def get_weights(self, values):
         weights = 0
@@ -65,6 +70,32 @@ class ImbalancedWeighting1D(ABC):
     @abstractmethod
     def get_weights(self, values):
         pass
+
+class ImbalancedWeightingClassification(ABC):
+    def __init__(self, data, num_classes):
+        self.num_classes = num_classes
+
+        self.counts = np.zeros(num_classes)
+        for i in range(num_classes):
+            self.counts[i] = len(data[data==i])
+
+        self.weights = 1.0 / self.counts
+        self.weights /= np.sum(self.weights)
+
+    def get_weights(self, values):
+        indices = values.astype(np.int32)
+
+        # remove invalid indices during retrieval
+        indices[indices < 0] = 0
+        indices[indices >= self.num_classes] = 0
+
+        weights = self.weights[indices]
+        # max_weight = np.max(weights)
+
+        # Set invalid indices to 0
+        # weights[indices < 0] = max_weight
+        # weights[indices >= self.num_classes] = max_weight
+        return weights
 
 class ImbalancedWeightingKde(ImbalancedWeighting1D):
     def __init__(self, data, max_weight=10.0):

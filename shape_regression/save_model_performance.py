@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from tqdm import tqdm
-from dgcnn_visualize_outputs import plot_cloud_error
+from run_visualize_outputs import plot_cloud_error
 import json
 from torch.utils.data import DataLoader
 from pathlib import Path

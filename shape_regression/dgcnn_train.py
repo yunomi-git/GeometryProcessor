@@ -22,7 +22,7 @@ input_append_label_names = [
     "nz"
 ]
 
-category_thresholds = [0.01, 0.05, 0.1]
+category_thresholds = [0.3]
 
 num_outputs = len(label_names)
 last_layer = None
@@ -63,7 +63,7 @@ args = {
     "data_parallel": False,
     "augmentations": None,
 
-    "use_imbalanced_weight": True, #1 means no weighting
+    "use_imbalanced_weight": False,
     "remove_outlier_ratio": 0.0, # 0 means remove no outliers
 
     # Opt Param
@@ -80,7 +80,7 @@ args = {
     "patience": 5,
     "factor": 0.1,
 
-    "notes": ""
+    "notes": "binary_0.3_unweighted"
 }
 
 args.update(model_args)

@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from polyscope_bindings import y_front
 from tqdm import tqdm
 import numpy as np
 import sklearn.metrics as metrics
@@ -16,6 +17,7 @@ from scipy import stats
 import pandas as pd
 import seaborn as sn
 from sklearn.metrics import confusion_matrix
+from fast_histogram import histogram1d
 
 class RegressionTools:
     def __init__(self, args, label_names, train_loader, test_loader, model, opt, scheduler=None, clip_parameters=False,
@@ -49,7 +51,9 @@ class RegressionTools:
             if self.train_loader.dataset.imbalanced_weighting is not None:
                 imbalanced_weighting = self.train_loader.dataset.imbalanced_weighting
                 weights = imbalanced_weighting.get_weights(np.arange(0, self.num_classes, step=1))
-            self.loss_criterion = torch.nn.CrossEntropyLoss(torch.Tensor(weights).to(self.device))
+                weights = torch.Tensor(weights).to(self.device)
+            # self.loss_criterion = torch.nn.CrossEntropyLoss(weight=weights)
+            self.loss_criterion = torch.nn.NLLLoss(weight=weights)
         else:
             self.loss_criterion = torch.nn.MSELoss(reduction='mean')
 
@@ -188,14 +192,22 @@ class RegressionTools:
                 print(e)
                 continue
 
-            # if self.do_classification:
-            #     preds = torch.argmax(preds)
+            if self.do_classification:
+                loss_labels = label.long()
+                loss_preds = preds.clone()
+                if len(label.shape) == 3:
+                    loss_labels = loss_labels.reshape((label.shape[0] * label.shape[1]))
+                    loss_preds = loss_preds.reshape((preds.shape[0] * preds.shape[1], preds.shape[2]))
+                # Note: weight is already incorporated into the loss for classification
+            else:
+                loss_labels = weight * label
+                loss_preds = weight * preds
 
             if training:
                 if len(label.shape) == 3:
                     # TODO note this assumes batch size 1
-                    loss = self.loss_criterion(weight * preds,
-                                               weight * label) / self.gradient_accumulation_steps
+                    loss = self.loss_criterion(loss_preds,
+                                               loss_labels) / self.gradient_accumulation_steps
                     # loss_indices = util.get_permutation_for_list(preds[0], 4096)
                     # loss = self.loss_criterion(weight * preds[:, loss_indices, :],
                     #                            weight * label[:, loss_indices, :]) / self.gradient_accumulation_steps
@@ -212,7 +224,7 @@ class RegressionTools:
                     self.opt.zero_grad()
             else:
                 # TODO this assumes all vertex lengths are equal or batch size 1
-                loss = self.loss_criterion(weight * preds, weight * label)
+                loss = self.loss_criterion(loss_preds, loss_labels)
 
             batch_size = vertices.size()[0]
             count += batch_size
@@ -234,6 +246,11 @@ class RegressionTools:
                 # r2_indices = np.arange(start=0, stop=len(preds), step=int(np.ceil(len(preds) / R2_SAMPLES)), dtype=np.int64)
                 # label = label[r2_indices]
                 # preds = preds[r2_indices]
+
+            # convert for classification
+            if self.do_classification:
+                preds = np.argmax(preds, axis=-1)
+                preds = preds[..., np.newaxis]
 
             train_true.append(label)
             train_pred.append(preds)
@@ -277,20 +294,10 @@ class RegressionTools:
             acc = get_accuracy_tolerance(preds=train_pred, actual=train_true, tolerance=0.05)
 
             outstr = '========\nTrain Epoch:' + str(epoch)
-            outstr += '\n\tLoss: ' + str(test_loss * 1.0 / count)
+            outstr += '\n\tLoss: ' + str(train_loss * 1.0 / count)
             outstr += '\n\tr2: ' + str(res_train)
             outstr += '\n\tacc: ' + str(acc)
             outstr += '\n\tlr: ' + str(self.opt.param_groups[0]['lr'])
-            # outstr = ('========\nTrain Epoch: %d '
-            #           '\n\tLoss: %.6f '
-            #           '\n\tr2: %s '
-            #           '\n\tlr: %s '
-            #           '\n\tacc: %s' %
-            #           (epoch,
-            #            train_loss * 1.0 / count,
-            #            str(res_train),
-            #            self.opt.param_groups[0]['lr'],
-            #            str(acc)))
             self.io.cprint(outstr)
 
             loss_train_history.append(train_loss * 1.0 / count)
@@ -324,20 +331,21 @@ class RegressionTools:
                 outstr += '\n\t\tacc: ' + str(acc_test)
                 self.io.cprint(outstr)
 
-                # ('--\n\tTest: \n\t\tLoss: %.6f \n\t\tr2: %s\n=========' %
-                #  (test_loss * 1.0 / count, str(res_test)))
                 loss_test_history.append(train_loss * 1.0 / count)
                 res_test_history.append(res_test)
                 acc_test_history.append(acc_test)
 
-            # Logging
+            #### Logging
+            plot_error = False
             if (plot_every_n_epoch >= 1 and epoch % plot_every_n_epoch == 0) or epoch + 1 == args['epochs']:
                 timer = Stopwatch()
                 timer.start()
-                self.save_r2(phase='train', epoch=epoch, r2_list=res_train, true_list=train_true, pred_list=train_pred, labels=labels)
+                self.save_r2(phase='train', epoch=epoch, r2_list=res_train,
+                             true_list=train_true, pred_list=train_pred, labels=labels, plot_error=plot_error)
 
                 if do_test:
-                    self.save_r2(phase='test', epoch=epoch, r2_list=res_test, true_list=test_true, pred_list=test_pred, labels=labels)
+                    self.save_r2(phase='test', epoch=epoch, r2_list=res_test,
+                                 true_list=test_true, pred_list=test_pred, labels=labels, plot_error=plot_error)
 
                 print("Time to save figures: ", timer.get_time())
 
@@ -357,7 +365,7 @@ class RegressionTools:
                     self.save_history_per_label(labels=labels, name="R2", train_history=res_train_history)
                 self.save_history(name="Loss", train_history=loss_train_history)
 
-            # Save Checkpoint
+            ##### Save Checkpoint
             if do_test:
                 res_mag = np.linalg.norm(res_test)
                 if (res_test > 0).all() and res_mag > best_res_mag:
@@ -370,7 +378,7 @@ class RegressionTools:
                     torch.save(self.model.state_dict(), self.checkpoint_path + 'model.t7')
 
 
-    def save_r2(self, phase, epoch, r2_list, true_list, pred_list, labels):
+    def save_r2(self, phase, epoch, r2_list, true_list, pred_list, labels, plot_error=True):
         # fig, axes = plt.subplots(len(r2_list), 1)
         # if len(r2_list) == 1:
         #     axes = [axes]
@@ -385,17 +393,28 @@ class RegressionTools:
             pred = pred_list[:, i]
             plot_indices = np.arange(start=0, stop=len(true), step=int(np.ceil(len(true) / self.NUM_PLOT_POINTS)),
                                      dtype=np.int64)
-            fig = self.create_r2_kde_fig(phase=phase, true=true[plot_indices], pred=pred[plot_indices], label=labels[i])
+            if self.do_classification:
+                fig = self.create_confusion_fig(phase=phase, true=true[plot_indices], pred=pred[plot_indices],
+                                             label=labels[i])
+            else:
+                fig = self.create_r2_kde_fig(phase=phase, true=true[plot_indices], pred=pred[plot_indices], label=labels[i], plot_error=plot_error)
             fig.savefig(self.checkpoint_path + "images/" + phase + '_confusion_' + labels[i] + "_" + str(epoch) + '.png')
 
-    def plot_r2_on_ax(self, ax, phase, true, pred, label):
+    def plot_r2_on_ax(self, ax, phase, true, pred, label, plot_error=True):
         error = pred - true
         # plot_indices = np.arange(start=0, stop=len(error), step=int(np.ceil(len(error) / self.NUM_PLOT_POINTS)),
         #                          dtype=np.int64)
-        ax.scatter(true, error, alpha=self.default_alpha)
+        if plot_error:
+            y_values = error
+        else:
+            y_values = pred
+        ax.scatter(true, y_values, alpha=self.default_alpha)
         ax.hlines(y=0, xmin=min(true), xmax=max(true), color="red")
         ax.set_xlabel(phase + " True", fontsize=18)
-        ax.set_ylabel(label + " Error", fontsize=18)
+        if plot_error:
+            ax.set_ylabel(label + " Error", fontsize=18)
+        else:
+            ax.set_ylabel(label + " Pred", fontsize=18)
 
     def plot_confusion_matrix_on_ax(self, ax, true, pred, phase, label):
         # Build confusion matrix
@@ -403,12 +422,63 @@ class RegressionTools:
         cf_matrix = confusion_matrix(true, pred)
         df_cm = pd.DataFrame(cf_matrix / np.sum(cf_matrix, axis=1)[:, None], index=[i for i in classes],
                              columns=[i for i in classes])
-        sn.heatmap(df_cm, annot=True, ax=ax)
-        ax.set_xlabel(phase, fontsize=18)
-        ax.set_ylabel(label, fontsize=18)
+        sn.heatmap(df_cm, annot=True, ax=ax, cmap='Reds')
+        ax.set_xlabel(phase + " " + label, fontsize=18)
+        # ax.set_ylabel(label, fontsize=18)
 
-    def create_r2_kde_fig(self, phase, true, pred, label, ratio=5):
-        # TODO need to sample from pred and true
+    def create_confusion_fig(self, phase, true, pred, label, ratio=5):
+        ##### Instantiate grid ########################
+        # Set up 4 subplots and aspect ratios as axis objects using GridSpec:
+        gs = gridspec.GridSpec(2, 1, height_ratios=[ratio, 1])
+        # Add space between scatter plot and KDE plots to accommodate axis labels:
+        gs.update(hspace=0.3, wspace=0.3)
+
+        fig = plt.figure(figsize=[12, 7])  # Set background canvas colour to White instead of grey default
+        fig.patch.set_facecolor('white')
+
+        error = pred - true
+
+        xmin = np.min(true)
+        xmax = np.max(true)
+        ymin = np.min(error)
+        ymax = np.max(error)
+
+        ax = plt.subplot(gs[0, 0])  # Instantiate scatter plot area and axis range
+        ax.set_xlim(xmin, xmax)
+        ax.set_ylim(ymin, ymax)
+        ax.yaxis.labelpad = 10  # adjust space between x and y axes and their labels if needed
+
+        axb = plt.subplot(gs[1, 0], sharex=ax)  # Instantiate bottom KDE plot area
+        axb.get_xaxis().set_visible(False)  # Hide tick marks and spines
+        axb.get_yaxis().set_visible(False)
+        axb.spines["right"].set_visible(False)
+        axb.spines["top"].set_visible(False)
+        axb.spines["left"].set_visible(False)
+
+
+        ##### Actually Plot ############################
+        self.plot_confusion_matrix_on_ax(ax=ax, phase=phase, label=label, true=true, pred=pred)
+
+        hist = histogram1d(true, range=[-0.001, self.num_classes + 0.001], bins=self.num_classes)
+
+        axb.bar(x=np.arange(self.num_classes), height=hist, alpha=0.3, color='b')
+        axb.set_ylabel("KDE")  # This isn't showing for some reason
+
+        # also plot weights if appropriate
+        if phase == "train":
+            data_loader = self.train_loader
+        else:
+            data_loader = self.test_loader
+        if data_loader.dataset.has_weights:
+            axb2 = axb.twinx()
+            axb2.set_ylabel("Weights")
+            imbalanced_weighting = data_loader.dataset.imbalanced_weighting
+            weights = imbalanced_weighting.get_weights(np.arange(0, self.num_classes, step=1))
+            axb2.bar(x=np.arange(self.num_classes), height=weights, alpha=0.3, color="orange")
+
+        return fig
+
+    def create_r2_kde_fig(self, phase, true, pred, label, plot_error=True, ratio=5):
         ##### Instantiate grid ########################
         # Set up 4 subplots and aspect ratios as axis objects using GridSpec:
         gs = gridspec.GridSpec(2, 2, width_ratios=[1, ratio], height_ratios=[ratio, 1])
@@ -420,10 +490,15 @@ class RegressionTools:
 
         error = pred - true
 
+        if plot_error:
+            y_values = error
+        else:
+            y_values = pred
+
         xmin = np.min(true)
         xmax = np.max(true)
-        ymin = np.min(error)
-        ymax = np.max(error)
+        ymin = np.min(y_values)
+        ymax = np.max(y_values)
 
         ax = plt.subplot(gs[0, 1])  # Instantiate scatter plot area and axis range
         ax.set_xlim(xmin, xmax)
@@ -451,7 +526,7 @@ class RegressionTools:
         if self.do_classification:
             self.plot_confusion_matrix_on_ax(ax=ax, phase=phase, label=label, true=true, pred=pred)
         else:
-            self.plot_r2_on_ax(ax, phase, true, pred, label)
+            self.plot_r2_on_ax(ax, phase, true, pred, label, plot_error=plot_error)
 
         kde = stats.gaussian_kde(true)
         xx = np.linspace(xmin, xmax, 1000)
@@ -476,7 +551,7 @@ class RegressionTools:
             axb2.fill_between(xx, weights, color='orange', alpha=0.3)
 
 
-        kde = stats.gaussian_kde(error)
+        kde = stats.gaussian_kde(y_values)
         yy = np.linspace(ymin, ymax, 1000)
         axl.plot(kde(yy), yy)
         axl.fill_between(kde(yy), yy, alpha=0.3)
@@ -505,6 +580,7 @@ class RegressionTools:
             ax.grid(visible=True, which='major', axis='y')
 
         fig.savefig(self.checkpoint_path + "images/" + name + '.png')
+        # plt.close(fig)
 
     def save_history(self, name, train_history, test_history=None):
         fig, ax = plt.subplots()
@@ -520,45 +596,7 @@ class RegressionTools:
         ax.grid(visible=True, which='major', axis='y')
 
         fig.savefig(self.checkpoint_path + "images/" + name + '.png')
-
-
-    def save_loss(self, labels, res_train_history, loss_train_history, res_test_history=None, loss_test_history=None):
-        timer = Stopwatch()
-        timer.start()
-
-        fig, axes = plt.subplots(len(labels), 1)
-        if len(labels) == 1:
-            axes = [axes]
-        fig.set_size_inches(8, 6)
-
-        for i in range(len(labels)):
-            ax = axes[i]
-            # ax.subplot(len(labels), 1, i + 1)
-            train_res_history = np.array(res_train_history)
-            ax.plot(train_res_history[:, i], label='train')
-
-            if res_test_history is not None:
-                test_res_history = np.array(res_test_history)
-                plt.plot(test_res_history[:, i], label='test')
-
-            ax.set_ylabel(labels[i] + " Train R2")
-            ax.set_xlabel("Epoch")
-            ax.legend()
-            ax.grid(visible=True, which='major', axis='y')
-
-        fig.savefig(self.checkpoint_path + "images/" + 'r2_train.png')
-
-        fig, ax = plt.subplots()
-        fig.set_size_inches(8, 6)
-        ax.plot(loss_train_history, label='train')
-        if loss_test_history is not None:
-            ax.plot(loss_test_history, label='test')
-
-        ax.set_ylabel("Loss")
-        ax.set_xlabel("Epoch")
-        ax.legend()
-        fig.savefig(self.checkpoint_path + "images/" + 'loss.png')
-        # print("Time to save figures: ", timer.get_time())
+        # plt.close(fig)
 
 
 def get_accuracy_tolerance(preds: np.ndarray, actual: np.ndarray, tolerance=0.1):
@@ -593,4 +631,17 @@ def seed_all(seed):
     os.environ['PYTHONHASHSEED'] = str(seed) # What is this?
     os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE" # What is this?
 
+def load_args(arg_path):
+    with open(arg_path, 'r') as f:
+        model_args = json.load(f)
 
+    if "use_category_thresholds" not in model_args:
+        model_args["use_category_thresholds"] = None
+
+    if "use_imbalanced_weights" not in model_args:
+        model_args["use_imbalanced_weights"] = False
+
+    if "num_data" not in model_args:
+        model_args["num_data"] = None
+
+    return model_args

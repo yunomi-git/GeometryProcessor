@@ -1,5 +1,5 @@
 numpy==1.24 # for pymesh testing. but can also just remove the testing line int __init__
-matplotlib
+matplotlib==3.7.3
 scipy #
 fast_histogram
 

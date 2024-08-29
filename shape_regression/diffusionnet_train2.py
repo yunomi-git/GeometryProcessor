@@ -28,19 +28,20 @@ label_names = [
     # "SurfaceArea"
     # "Volume"
 ]
+input_append_vertex_label_names = []
+input_append_global_label_names = []
 
-input_append_vertex_label_names = [
-    # "nx",
-    # "ny",
-    # "nz"
-]
+##### Classification
+# category_thresholds = [0.05]
+category_thresholds = None
 
-input_append_global_label_names = [
-    # "nx",
-    # "ny",
-    # "nz"
-]
+num_outputs = len(label_names)
+last_layer = None
+if category_thresholds is not None:
+    num_outputs = len(category_thresholds) + 1
+    last_layer = "softmax"
 
+######## Aggregation
 # aggregator = ThicknessThresholdAggregator(warning_thickness=0.02, failure_thickness=0.05)
 aggregator = None
 aggregator_name = "none"
@@ -68,12 +69,12 @@ model_args = {
     "input_feature_type": 'xyz', # xyz, hks
     "k_eig": 64,
     "additional_dimensions": len(input_append_vertex_label_names) + len(input_append_global_label_names),
-    "num_outputs": len(label_names),
-    "C_width": 512,
-    "N_block": 4,
-    "last_activation": None,
+    "num_outputs": num_outputs,
+    "C_width": 256,
+    "N_block": 3,
+    "last_layer": last_layer,
     "outputs_at": 'vertices',
-    "mlp_hidden_dims": [512, 256],
+    "mlp_hidden_dims": [256, 128],
     "dropout": True,
     "with_gradient_features": True,
     "with_gradient_rotations": True,
@@ -83,9 +84,12 @@ model_args = {
 }
 
 experiment_name = succinct_label_save_name(label_names) + aggregator_name
+if category_thresholds is not None:
+    experiment_name += "_CAT"
+
 
 args = {
-    "dataset_name": "DrivAerNet/train/",
+    "dataset_name": "DaVinci/train/",
     "exp_name": experiment_name,
     "label_names": label_names,
     "input_append_vertex_label_names": input_append_vertex_label_names,
@@ -94,21 +98,22 @@ args = {
     "seed": 0,
     "augmentations": "none",
     "remove_outlier_ratio": 0.0,
-    "use_imbalanced_weights": True,
+    "use_imbalanced_weights": False,
 
     # Dataset Param
-    "data_fraction": 1.0,
+    "data_fraction": 0.3,
     "num_data": None,
     "do_test": True,
-    "workers": 24,
+    "workers": 1,
     "augment_random_rotate": (model_args["input_feature_type"] == 'xyz'),
+    "use_category_thresholds": category_thresholds,
 
     # Opt Param
     "batch_size": 1,
     "test_batch_size": 1,
     "grad_acc_steps": 128,
-    "epochs": 100,
-    "lr": 1e-2,
+    "epochs": 50,
+    "lr": 1e-3,
     "weight_decay": 1e-5,
 
     "scheduler": "plateau",
@@ -117,7 +122,7 @@ args = {
     "patience": 5,
     "factor": 0.1,
 
-    "notes": "imbalanced_weights"
+    "notes": "after_dataset_fix_no_weights"
 }
 
 args.update(model_args)
@@ -141,8 +146,9 @@ if __name__=="__main__":
                                                   augmentations=args["augmentations"],
                                                   remove_outlier_ratio=args["remove_outlier_ratio"],
                                                   cache_operators=cache_operators,
-                                                  aggregator=aggregator),
-                                  num_workers=24,
+                                                  aggregator=aggregator,
+                                                  categorical_thresholds=category_thresholds),
+                                  num_workers=1,
                                   batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = None
     if args["do_test"]:
@@ -158,8 +164,10 @@ if __name__=="__main__":
                                                      use_imbalanced_weights=args["use_imbalanced_weights"],
                                                      augmentations=args["augmentations"],
                                                      remove_outlier_ratio=args["remove_outlier_ratio"],
-                                                     aggregator=aggregator),
-                                 num_workers=24,
+                                                     aggregator=aggregator,
+                                                     cache_operators=cache_operators,
+                                                     categorical_thresholds=category_thresholds),
+                                 num_workers=1,
                                  batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 
     model = DiffusionNetWrapper(args, op_cache_dir, device)
