@@ -5,9 +5,12 @@ from tkinter.filedialog import askopenfilename
 # import torch
 
 HOME_PATH = os.path.dirname(os.path.abspath(__file__)) + "/"
+HARDDRIVE_PATH = "/media/spithead/large_drive/"
 MODELS_PATH = HOME_PATH + "shape_regression/checkpoints/"
 RAW_DATASETS_PATH = HOME_PATH + "../Datasets/"
 CACHED_DATASETS_PATH = HOME_PATH + "../CachedDatasets/"
+
+
 
 # ONSHAPE_STL_PATH = HOME_PATH + "../Datasets/Onshape_STL_Dataset/"
 # THINGIVERSE_STL_PATH = HOME_PATH + "../Thingiverse_STL_Dataset/"

@@ -11,19 +11,27 @@ from FolderManager import DirectoryPathManager
 
 time = util.Stopwatch()
 
-def default_remesh(file_path, out_path=None, show=False):
+def default_remesh(file_path, out_path=None, show=False, size=1):
     ms = pymeshlab.MeshSet()
     ms.load_new_mesh(file_path)
 
     ms.meshing_surface_subdivision_midpoint(iterations=3)
     # ms.meshing_decimation_clustering(threshold=pymeshlab.PercentageValue(0.1))
-    ms.meshing_isotropic_explicit_remeshing(iterations=5)
+    ms.meshing_isotropic_explicit_remeshing(iterations=5, targetlen=pymeshlab.PercentageValue(size))
 
 
     if out_path is not None:
         ms.save_current_mesh(out_path, save_face_color=False)
     if show:
         ms.show_polyscope()
+
+def default_trimesh_remesh(trimesh_mesh: trimesh.Trimesh, size=1):
+    temp_name = "remesh_temp.stl"
+    out_temp_name = "remesh_temp_out.stl"
+    trimesh_mesh.export(temp_name)
+    default_remesh(temp_name, out_temp_name, show=False, size=size)
+    return trimesh.load(out_temp_name)
+
 
 def default_remesh_with_checks(file_path, out_path=None):
     try:

@@ -22,7 +22,8 @@ input_append_label_names = [
     "nz"
 ]
 
-category_thresholds = [0.3]
+# category_thresholds = [0.3]
+category_thresholds = None
 
 num_outputs = len(label_names)
 last_layer = None
@@ -31,13 +32,13 @@ if category_thresholds is not None:
     last_layer = "softmax"
 
 model_args = {
-    "num_points": 2048,
+    "num_points": 4096,
     "input_dims": 3 + len(input_append_label_names),
-    "conv_channel_sizes": [128, 128, 256, 512],  # Default: [64, 64, 128, 256] #Mo: [512, 512, 1024]
+    "conv_channel_sizes": [512, 512, 1024],  # Default: [64, 64, 128, 256] #Mo: [512, 512, 1024]
     "emb_dims": 512,
     "linear_sizes": [1024, 512, 256, 128, 64, 32, 16],  # [512, 256] #Mo: [1024, 512, 256, 128, 64, 32, 16]
     "num_outputs": num_outputs,
-    "k": 20,
+    "k": 40,
     "dropout": 0.2,
     "outputs_at": "vertices",
     "last_layer": last_layer,
@@ -49,7 +50,6 @@ if category_thresholds is not None:
 
 args = {
     "dataset_name": "DaVinci/train",
-    # "testset_name": "mcb_test",
     "exp_name": experiment_name,
     "label_names": label_names,
     "input_append_label_names": input_append_label_names,
@@ -59,7 +59,7 @@ args = {
     # Dataset Param
     "data_fraction": 0.3,
     "do_test": True,
-    "workers": 23,
+    "workers": 24,
     "data_parallel": False,
     "augmentations": None,
 
@@ -67,10 +67,10 @@ args = {
     "remove_outlier_ratio": 0.0, # 0 means remove no outliers
 
     # Opt Param
-    "batch_size": 8,
-    "test_batch_size": 32,
-    "grad_acc_steps": 4,
-    "epochs": 50,
+    "batch_size": 2,
+    "test_batch_size": 4,
+    "grad_acc_steps": 64,
+    "epochs": 100,
     "lr": 1e-3,
     "weight_decay": 1e-5,
 
@@ -80,7 +80,7 @@ args = {
     "patience": 5,
     "factor": 0.1,
 
-    "notes": "binary_0.3_unweighted"
+    "notes": "huge"
 }
 
 args.update(model_args)
@@ -89,29 +89,22 @@ if __name__ == "__main__":
     ### Data ###
     seed_all(args["seed"])
     data_root_dir = paths.CACHED_DATASETS_PATH + args["dataset_name"] + "/"
-    # test_root_dir = paths.CACHED_DATASETS_PATH + args["testset_name"] + "/"
-    train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
-                                                append_label_names=args['input_append_label_names'],
+    train_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], args=args,
                                                 partition='train',
                                                 augmentations=args['augmentations'],
                                                 data_fraction=args["data_fraction"],
-                                                outputs_at=args["outputs_at"],
                                                 use_imbalanced_weights=args["use_imbalanced_weight"],
-                                                remove_outlier_ratio=args["remove_outlier_ratio"],
-                                                categorical_thresholds=category_thresholds),
+                                                remove_outlier_ratio=args["remove_outlier_ratio"]),
                               num_workers=args["workers"],
                               batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = None
     if args["do_test"]:
-        test_loader = DataLoader(PointCloudDataset(data_root_dir, args['num_points'], label_names=label_names,
-                                                   append_label_names=args['input_append_label_names'],
+        test_loader = DataLoader(PointCloudDataset(data_root_dir, args=args, num_points=args['num_points'],
                                                    partition='validation',
                                                    augmentations=args['augmentations'],
                                                    data_fraction=args["data_fraction"],
-                                                   outputs_at=args["outputs_at"],
                                                    use_imbalanced_weights=args["use_imbalanced_weight"],
-                                                   remove_outlier_ratio=args["remove_outlier_ratio"],
-                                                   categorical_thresholds=category_thresholds),
+                                                   remove_outlier_ratio=args["remove_outlier_ratio"]),
                                  num_workers=args["workers"],
                                  batch_size=args['test_batch_size'], shuffle=True, drop_last=True)
 
@@ -141,7 +134,7 @@ if __name__ == "__main__":
         opt=opt,
         scheduler=scheduler,
         clip_parameters=True,
-        include_faces=False
+        use_mesh=False
     )
 
     regression_manager.train(args, do_test=args["do_test"], plot_every_n_epoch=5)

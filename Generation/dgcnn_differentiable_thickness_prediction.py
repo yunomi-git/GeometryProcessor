@@ -8,13 +8,13 @@ from dataset.process_and_save import MeshDatasetFileManager
 from shape_regression.pointcloud_dataloader import PointCloudDataset
 import trimesh_util
 from shape_regression.dgcnn_model import DGCNN_segment
-import Generation.DifferentiableNormals as difnorm
+import printability_heuristics.DifferentiableNormals as difnorm
 import torch
 import torch.nn as nn
 import trimesh
-from Generation.Thresholds import get_threshold_penalty
+from printability_heuristics.Thresholds import get_threshold_penalty
 import pyvista as pv
-
+from shape_regression import regression_tools
 
 args = {
     # Dataset Param
@@ -38,11 +38,11 @@ class DgcnnThickness:
         # save_path = paths.MODELS_PATH + "mcb_scal_a/DGCNN_segment/430_14_0_thick-/"
         arg_path = save_path + "args.json"
         checkpoint_path = save_path + "model.t7"
-        with open(arg_path, 'r') as f:
-            model_args = json.load(f)
+        model_args = regression_tools.load_args(arg_path)
         self.model = DGCNN_segment(model_args)
         self.modelmodel = nn.DataParallel(self.model)
         self.model.to(device)
+        self.model.eval()
 
         checkpoint = torch.load(checkpoint_path)
         self.modelmodel.load_state_dict(checkpoint)
@@ -65,11 +65,21 @@ def show_inference_pointcloud(preds, cloud):
     preds = preds[:, :, 0].flatten()
     trimesh_util.show_sampled_values(mesh=None, points=cloud, values=preds, normalize=True, alpha=1.0)
 
-def get_thickness_loss(thicknesses):
-    loss_func = get_threshold_penalty(x_warn=0.1, x_fail=0.05, crossover=0.05)
-    thickness_loss = loss_func(thicknesses)
-    loss = torch.mean(thickness_loss)
-    return loss
+class ThicknessLoss:
+    def __init__(self, x_warn=0.1, x_fail=0.05, crossover=0.05):
+        self.loss_func = get_threshold_penalty(x_warn=0.1, x_fail=0.05, crossover=0.05)
+
+    def get_loss(self, thicknesses):
+        thickness_loss = self.loss_func(thicknesses)
+        loss = torch.mean(thickness_loss)
+        # loss = torch.mean(thicknesses)
+        return loss
+
+# def get_thickness_loss(thicknesses):
+#     loss_func = get_threshold_penalty(x_warn=0.1, x_fail=0.05, crossover=0.05)
+#     thickness_loss = loss_func(thicknesses)
+#     loss = torch.mean(thickness_loss)
+#     return loss
 
 if __name__=="__main__":
     mesh = trimesh.load(paths.HOME_PATH + "stls/squirrel.stl")

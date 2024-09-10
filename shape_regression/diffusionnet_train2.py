@@ -4,7 +4,6 @@ from shape_regression.diffusionnet_model import DiffusionNetWrapper, DiffusionNe
 import numpy as np
 import torch
 import torch.optim as optim
-from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from shape_regression.regression_tools import RegressionTools, succinct_label_save_name, seed_all
 from dataset.process_and_save_temp import Augmentation
 import paths
@@ -14,17 +13,17 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmResta
 from dataset.VertexAggregator import ThicknessThresholdAggregator
 
 # system things
+torch.cuda.empty_cache()
+# torch.set_num_threads(1)
 device = torch.device('cuda')
 dtype = torch.float32
 
 cache_operators = False
 
-torch.cuda.empty_cache()
 
 label_names = [
-    # "Volume"
     "Thickness"
-    # "curvature"
+    # "Gaps"
     # "SurfaceArea"
     # "Volume"
 ]
@@ -32,7 +31,8 @@ input_append_vertex_label_names = []
 input_append_global_label_names = []
 
 ##### Classification
-# category_thresholds = [0.05]
+# category_thresholds = [0.00, 0.10]
+# category_thresholds = [0.00, 0.10]
 category_thresholds = None
 
 num_outputs = len(label_names)
@@ -44,9 +44,9 @@ if category_thresholds is not None:
 ######## Aggregation
 # aggregator = ThicknessThresholdAggregator(warning_thickness=0.02, failure_thickness=0.05)
 aggregator = None
-aggregator_name = "none"
+aggregator_name = ""
 if aggregator is not None:
-    aggregator_name = aggregator.get_name()
+    aggregator_name = "AGG" + aggregator.get_name()
 
 rot_augmentations = [Augmentation(scale=np.array([1.0, 1.0, 1.0]),
                                     rotation=np.array([np.pi, 0.0, 0.0])),
@@ -96,7 +96,7 @@ args = {
     "input_append_global_label_names": input_append_global_label_names,
     "aggregator": aggregator_name,
     "seed": 0,
-    "augmentations": "none",
+    "augmentations": "none", #augmentations_string, #"none",
     "remove_outlier_ratio": 0.0,
     "use_imbalanced_weights": False,
 
@@ -107,6 +107,7 @@ args = {
     "workers": 1,
     "augment_random_rotate": (model_args["input_feature_type"] == 'xyz'),
     "use_category_thresholds": category_thresholds,
+    "wiggle_position": False,
 
     # Opt Param
     "batch_size": 1,
@@ -122,7 +123,7 @@ args = {
     "patience": 5,
     "factor": 0.1,
 
-    "notes": "after_dataset_fix_no_weights"
+    "notes": "augmentation no weights"
 }
 
 args.update(model_args)
@@ -133,44 +134,37 @@ if __name__=="__main__":
     op_cache_dir = data_root_dir + "../op_cache/"
     print(op_cache_dir)
 
-    train_loader = DataLoader(DiffusionNetDataset(data_root_dir, model_args["k_eig"],
+    train_loader = DataLoader(DiffusionNetDataset(data_root_dir, model_args["k_eig"], args=args,
                                                   op_cache_dir=op_cache_dir,
                                                   partition="train",
                                                   num_data=args["num_data"],
-                                                  data_fraction=args["data_fraction"], label_names=label_names,
+                                                  data_fraction=args["data_fraction"],
                                                   augment_random_rotate=args["augment_random_rotate"],
-                                                  extra_vertex_label_names=args["input_append_vertex_label_names"],
-                                                  extra_global_label_names=args["input_append_global_label_names"],
-                                                  outputs_at=args["outputs_at"],
                                                   use_imbalanced_weights=args["use_imbalanced_weights"],
                                                   augmentations=args["augmentations"],
                                                   remove_outlier_ratio=args["remove_outlier_ratio"],
                                                   cache_operators=cache_operators,
-                                                  aggregator=aggregator,
-                                                  categorical_thresholds=category_thresholds),
+                                                  aggregator=aggregator),
                                   num_workers=1,
                                   batch_size=args['batch_size'], shuffle=True, drop_last=True)
     test_loader = None
     if args["do_test"]:
-        test_loader = DataLoader(DiffusionNetDataset(data_root_dir, model_args["k_eig"],
+        test_loader = DataLoader(DiffusionNetDataset(data_root_dir, model_args["k_eig"], args=args,
                                                      op_cache_dir=op_cache_dir,
                                                      partition="validation",
                                                      num_data=args["num_data"],
-                                                     data_fraction=args["data_fraction"], label_names=label_names,
+                                                     data_fraction=args["data_fraction"],
                                                      augment_random_rotate=args["augment_random_rotate"],
-                                                     extra_vertex_label_names=args["input_append_vertex_label_names"],
-                                                     extra_global_label_names=args["input_append_global_label_names"],
-                                                     outputs_at=args["outputs_at"],
                                                      use_imbalanced_weights=args["use_imbalanced_weights"],
                                                      augmentations=args["augmentations"],
                                                      remove_outlier_ratio=args["remove_outlier_ratio"],
                                                      aggregator=aggregator,
                                                      cache_operators=cache_operators,
-                                                     categorical_thresholds=category_thresholds),
+                                                     ),
                                  num_workers=1,
                                  batch_size=args['test_batch_size'], shuffle=True, drop_last=False)
 
-    model = DiffusionNetWrapper(args, op_cache_dir, device)
+    model = DiffusionNetWrapper(args, op_cache_dir, device, augment_perturb_position=args["wiggle_position"])
     model = model.to(device)
 
     # === Optimize
@@ -194,7 +188,7 @@ if __name__=="__main__":
         opt=opt,
         scheduler=scheduler,
         clip_parameters=True,
-        include_faces=True
+        use_mesh=True
     )
 
     regression_manager.train(args, do_test=args["do_test"], plot_every_n_epoch=5)

@@ -22,9 +22,11 @@ args = {
     "outputs_at": "vertices"
 }
 
-label_names = ["Thickness"]
+# label_names = ["Thickness"]
 
 device = "cuda"
+
+
 
 def plot_mesh_error(vertices, faces, preds, actual, save_path=None, show_deviation=True):
     min_value = min([np.min(preds), np.min(actual)])
@@ -36,9 +38,12 @@ def plot_mesh_error(vertices, faces, preds, actual, save_path=None, show_deviati
         length = 3 * default_size
     else:
         length = 2 * default_size
-    pl = pv.Plotter(shape=(1, 3), window_size=[length, default_size])
+    hide_gui = False
+    if save_path is not None:
+        hide_gui = True
+    pl = pv.Plotter(shape=(1, 3), window_size=[length, default_size], off_screen=hide_gui)
     pl.subplot(0, 0)
-    actor1 = pl.add_points(
+    actor1 = pl.add_mesh(
         mesh,
         scalars=actual.flatten(),
         show_scalar_bar=True,
@@ -50,7 +55,7 @@ def plot_mesh_error(vertices, faces, preds, actual, save_path=None, show_deviati
     actor1.mapper.lookup_table.cmap = 'jet'
 
     pl.subplot(0, 1)
-    actor2 = pl.add_points(
+    actor2 = pl.add_mesh(
         mesh,
         scalars=preds.flatten(),
         show_scalar_bar=True,
@@ -65,7 +70,7 @@ def plot_mesh_error(vertices, faces, preds, actual, save_path=None, show_deviati
     if show_deviation:
         error = np.abs(preds - actual)
         pl.subplot(0, 2)
-        actor3 = pl.add_points(
+        actor3 = pl.add_mesh(
             mesh,
             scalars=error,
             show_scalar_bar=True,
@@ -81,7 +86,7 @@ def plot_mesh_error(vertices, faces, preds, actual, save_path=None, show_deviati
     if save_path is None:
         pl.show()
     else:
-        pl.save_graphic(save_path)
+        pl.screenshot(save_path)
 
 def plot_cloud_error(cloud, preds, actual, save_path=None, show_deviation=True):
     min_value = min([np.min(preds), np.min(actual)])
@@ -93,7 +98,11 @@ def plot_cloud_error(cloud, preds, actual, save_path=None, show_deviation=True):
         length = 3 * default_size
     else:
         length = 2 * default_size
-    pl = pv.Plotter(shape=(1, 3), window_size=[length, default_size])
+
+    hide_gui = False
+    if save_path is not None:
+        hide_gui = True
+    pl = pv.Plotter(shape=(1, 3), window_size=[length, default_size], off_screen=hide_gui)
     pl.subplot(0, 0)
     actor1 = pl.add_points(
         cloud,
@@ -142,25 +151,7 @@ def plot_cloud_error(cloud, preds, actual, save_path=None, show_deviation=True):
     if save_path is None:
         pl.show()
     else:
-        pl.save_graphic(save_path)
-
-# def comparison(model, dataloader, i, categorical):
-#     augmented_cloud, actual = dataloader[i]
-#     cloud = augmented_cloud[:, :3]
-#
-#     cloud_tens = torch.from_numpy(augmented_cloud).float()
-#     cloud_tens = cloud_tens.to(device)
-#     preds = model(cloud_tens[None, :, :])
-#     preds = preds.detach().cpu().numpy()
-#
-#     if not categorical:
-#         preds = preds[:, :, 0].flatten()
-#     else:
-#         preds = np.argmax(preds, axis=-1).flatten()
-#     plot_cloud_error(cloud, preds, actual.flatten())
-
-
-
+        pl.screenshot(save_path)
 
 def display_meshes(model, dataset, categorical):
     for i in range(len(dataset)):
@@ -210,8 +201,6 @@ if __name__=="__main__":
     save_path = paths.select_file(choose_type="folder")
     arg_path = save_path + "args.json"
     checkpoint_path = save_path + "model.t7"
-    # with open(arg_path, 'r') as f:
-    #     model_args = json.load(f)
 
     model_args = regression_tools.load_args(arg_path)
 
@@ -219,54 +208,37 @@ if __name__=="__main__":
         model = DiffusionNetWrapper(model_args, op_cache_dir=op_cache_dir, device=device)
     else:
         model = DGCNN_segment(model_args)
-    # model = nn.DataParallel(model)
+
+    if "data_parallel" not in model_args or model_args["data_parallel"]:
+        model = nn.DataParallel(model.to(device))    # model = nn.DataParallel(model)
     model.to(device)
 
     checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint)
 
-    # use_category_thresholds = None
-    # if "use_category_thresholds" in model_args:
-    #     use_category_thresholds = model_args["use_category_thresholds"]
-    #     print(use_category_thresholds)
-    # use_category_thresholds = [0.05]
-
     categorical=True
     if model_args["use_category_thresholds"] is None:
         categorical=False
 
-    # use_imbalanced_weights = False
-    # if "use_imbalanced_weights" in model_args:
-    #     use_imbalanced_weights = True
-
-
-
     if mesh_visualization:
         dataset = DiffusionNetDataset(path, model_args["k_eig"],
+                                      args=model_args,
                                       op_cache_dir=op_cache_dir,
-                                      partition="test",
+                                      partition="train",
                                       num_data=None,
-                                      data_fraction=0.01, label_names=label_names,
+                                      data_fraction=0.01,
                                       augment_random_rotate=False,
-                                      extra_vertex_label_names=model_args["input_append_vertex_label_names"],
-                                      extra_global_label_names=model_args["input_append_global_label_names"],
-                                      outputs_at=model_args["outputs_at"],
                                       use_imbalanced_weights=True,
                                       augmentations="none",
                                       remove_outlier_ratio=0.0,
                                       cache_operators=False,
-                                      aggregator=None,
-                                      categorical_thresholds=model_args["use_category_thresholds"])
+                                      aggregator=None)
         display_meshes(model, dataset, categorical=categorical)
     else:
-        dataset = PointCloudDataset(path, args['num_points'], label_names=label_names,
-                                    append_label_names=model_args['input_append_label_names'],
-                                    partition='train',
+        dataset = PointCloudDataset(path, 4096, args=model_args,
+                                    partition='test',
                                     data_fraction=0.1,
-                                    outputs_at=args["outputs_at"],
                                     augmentations=None,
-                                    categorical_thresholds=model_args["use_category_thresholds"],
-                                    # imbalance_weight_num_bins=args["imbalanced_weighting_bins"],
                                     remove_outlier_ratio=args["remove_outlier_ratio"])
 
         display_point_clouds(model, dataset, categorical=categorical)

@@ -20,8 +20,8 @@ from sklearn.metrics import confusion_matrix
 from fast_histogram import histogram1d
 
 class RegressionTools:
-    def __init__(self, args, label_names, train_loader, test_loader, model, opt, scheduler=None, clip_parameters=False,
-                 include_faces=False):
+    def __init__(self, args, label_names, train_loader, test_loader, model, opt=None, scheduler=None, clip_parameters=False,
+                 use_mesh=False):
         torch.cuda.empty_cache()
         self.device = torch.device("cuda")
 
@@ -44,16 +44,24 @@ class RegressionTools:
         self.test_loader = test_loader
         self.train_loader = train_loader
 
+        self.test_only = train_loader is None
+
+        if train_loader is not None:
+            self.imbalanced_weighting = train_loader.dataset.imbalanced_weighting
+        elif test_loader is not None:
+            self.imbalanced_weighting = test_loader.dataset.imbalanced_weighting
+        else:
+            self.imbalanced_weighting = None
+
         if self.do_classification:
             self.num_classes = len(args["use_category_thresholds"]) + 1
             # create weights here
             weights = None
-            if self.train_loader.dataset.imbalanced_weighting is not None:
-                imbalanced_weighting = self.train_loader.dataset.imbalanced_weighting
-                weights = imbalanced_weighting.get_weights(np.arange(0, self.num_classes, step=1))
+            if self.imbalanced_weighting is not None:
+                weights = self.imbalanced_weighting.get_weights(np.arange(0, self.num_classes, step=1))
                 weights = torch.Tensor(weights).to(self.device)
-            # self.loss_criterion = torch.nn.CrossEntropyLoss(weight=weights)
-            self.loss_criterion = torch.nn.NLLLoss(weight=weights)
+            self.loss_criterion = torch.nn.CrossEntropyLoss(weight=weights)
+            # self.loss_criterion = torch.nn.NLLLoss(weight=weights)
         else:
             self.loss_criterion = torch.nn.MSELoss(reduction='mean')
 
@@ -61,7 +69,7 @@ class RegressionTools:
         self.clip_parameters = clip_parameters
         self.clip_threshold = 1.0
 
-        self.include_faces = include_faces
+        self.include_faces = use_mesh
 
         cudnn.benchmark = True
 
@@ -69,12 +77,14 @@ class RegressionTools:
         self.scheduler = scheduler
 
         self.args = args
-        self.checkpoint_path = ("checkpoints/" + self.dataset_name + "/" + self.model_name + "/" +
-                                util.get_date_name() + "_" + args['exp_name'] + "_" + args['notes'] + "/")
 
-        print("Saving checkpoints to: ", self.checkpoint_path)
-        self.io = self.create_checkpoints(args)
-        self.gradient_accumulation_steps = args["grad_acc_steps"]
+        if not self.test_only:
+            self.checkpoint_path = ("checkpoints/" + self.dataset_name + "/" + self.model_name + "/" +
+                                    util.get_date_name() + "_" + args['exp_name'] + "_" + args['notes'] + "/")
+
+            print("Saving checkpoints to: ", self.checkpoint_path)
+            self.io = self.create_checkpoints(args)
+            self.gradient_accumulation_steps = args["grad_acc_steps"]
         self.NUM_PLOT_POINTS = 7500
         self.default_alpha = 1000.0 / self.NUM_PLOT_POINTS
 
@@ -91,6 +101,29 @@ class RegressionTools:
         io = IOStream(self.checkpoint_path + 'run.log')
         return io
 
+
+    def get_loss(self, preds, label):
+        if self.do_classification:
+            loss_labels = label.long()
+            loss_preds = preds.clone()
+            if len(label.shape) == 3:
+                loss_labels = loss_labels.reshape((label.shape[0] * label.shape[1]))
+                loss_preds = loss_preds.reshape((preds.shape[0] * preds.shape[1], preds.shape[2]))
+            # Note: weight is already incorporated into the loss for classification
+        else:
+            # calculate weights if appropriate
+            weight = 1
+            if self.imbalanced_weighting is not None:
+                weight = self.imbalanced_weighting.get_weights(label.detach().cpu().numpy())
+                weight = torch.Tensor(weight)
+                weight = weight.to(self.device)
+
+            loss_labels = weight * label
+            loss_preds = weight * preds
+
+        loss = self.loss_criterion(loss_preds, loss_labels)
+        return loss
+
     def get_evaluations_pointcloud(self, training=True):
         train_loss = 0.0
         count = 0.0
@@ -106,30 +139,14 @@ class RegressionTools:
         else:
             data_loader = self.test_loader
         for batch_idx, (data, label) in enumerate(tqdm(data_loader)):
-            # calculate weights if appropriate
-            weight = 1
-            if data_loader.dataset.imbalanced_weighting is not None:
-                weight = data_loader.dataset.imbalanced_weighting.get_weights(label.numpy())
-                weight = torch.Tensor(weight)
-                weight = weight.to(self.device)
-
             data, label = data.to(self.device), label.to(self.device)
 
             preds = self.model(data)
 
-            if self.do_classification:
-                loss_labels = label.long()
-                loss_preds = preds.clone()
-                if len(label.shape) == 3:
-                    loss_labels = loss_labels.reshape((label.shape[0] * label.shape[1]))
-                    loss_preds = loss_preds.reshape((preds.shape[0] * preds.shape[1], preds.shape[2]))
-                # Note: weight is already incorporated into the loss for classification
-            else:
-                loss_labels = weight * label
-                loss_preds = weight * preds
+            loss = self.get_loss(preds, label)
 
             if training:
-                loss = self.loss_criterion(loss_preds, loss_labels) / self.gradient_accumulation_steps
+                loss /= self.gradient_accumulation_steps
                 loss.backward()
 
                 if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
@@ -137,8 +154,6 @@ class RegressionTools:
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
                     self.opt.step()
                     self.opt.zero_grad()
-            else:
-                loss = self.loss_criterion(loss_preds, loss_labels)
 
             batch_size = data.size()[0]
             count += batch_size
@@ -177,12 +192,6 @@ class RegressionTools:
         else:
             data_loader = self.test_loader
         for batch_idx, (vertices, faces, label) in enumerate(tqdm(data_loader)):
-            weight = 1.0
-            if data_loader.dataset.imbalanced_weighting is not None:
-                weight = data_loader.dataset.imbalanced_weighting.get_weights(label.numpy())
-                weight = torch.Tensor(weight)
-                weight = weight.to(self.device)
-
             vertices, faces, label = vertices.to(self.device), faces.to(self.device), label.to(self.device)
 
             try:
@@ -192,28 +201,15 @@ class RegressionTools:
                 print(e)
                 continue
 
-            if self.do_classification:
-                loss_labels = label.long()
-                loss_preds = preds.clone()
-                if len(label.shape) == 3:
-                    loss_labels = loss_labels.reshape((label.shape[0] * label.shape[1]))
-                    loss_preds = loss_preds.reshape((preds.shape[0] * preds.shape[1], preds.shape[2]))
-                # Note: weight is already incorporated into the loss for classification
-            else:
-                loss_labels = weight * label
-                loss_preds = weight * preds
+            loss = self.get_loss(preds, label)
+            # if len(label.shape) == 3:
+            #     # TODO note this assumes batch size 1
+            #     loss = self.loss_criterion(loss_preds, loss_labels) / self.gradient_accumulation_steps
+            # else:
+            #     loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
 
             if training:
-                if len(label.shape) == 3:
-                    # TODO note this assumes batch size 1
-                    loss = self.loss_criterion(loss_preds,
-                                               loss_labels) / self.gradient_accumulation_steps
-                    # loss_indices = util.get_permutation_for_list(preds[0], 4096)
-                    # loss = self.loss_criterion(weight * preds[:, loss_indices, :],
-                    #                            weight * label[:, loss_indices, :]) / self.gradient_accumulation_steps
-
-                else:
-                    loss = self.loss_criterion(weight * preds, weight * label) / self.gradient_accumulation_steps
+                loss /= self.gradient_accumulation_steps
                 loss.backward()
 
                 if batch_idx % self.gradient_accumulation_steps == 0 or (batch_idx + 1 == len(self.train_loader)):
@@ -222,9 +218,7 @@ class RegressionTools:
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_threshold)
                     self.opt.step()
                     self.opt.zero_grad()
-            else:
-                # TODO this assumes all vertex lengths are equal or batch size 1
-                loss = self.loss_criterion(loss_preds, loss_labels)
+
 
             batch_size = vertices.size()[0]
             count += batch_size
@@ -256,6 +250,7 @@ class RegressionTools:
             train_pred.append(preds)
 
         return train_loss, count, train_pred, train_true
+
 
     def train(self, args, do_test=True, plot_every_n_epoch=-1):
         best_res_mag = 0
@@ -501,8 +496,8 @@ class RegressionTools:
         ymax = np.max(y_values)
 
         ax = plt.subplot(gs[0, 1])  # Instantiate scatter plot area and axis range
-        ax.set_xlim(xmin, xmax)
-        ax.set_ylim(ymin, ymax)
+        ax.set_xlim(xmin, xmax+0.001)
+        ax.set_ylim(ymin, ymax+0.001)
         ax.yaxis.labelpad = 10  # adjust space between x and y axes and their labels if needed
 
         axl = plt.subplot(gs[0, 0], sharey=ax)  # Instantiate left KDE plot area
@@ -550,11 +545,11 @@ class RegressionTools:
             axb2.plot(xx, weights, c='orange')
             axb2.fill_between(xx, weights, color='orange', alpha=0.3)
 
-
-        kde = stats.gaussian_kde(y_values)
-        yy = np.linspace(ymin, ymax, 1000)
-        axl.plot(kde(yy), yy)
-        axl.fill_between(kde(yy), yy, alpha=0.3)
+        if ymax - ymin > 0:
+            kde = stats.gaussian_kde(y_values)
+            yy = np.linspace(ymin, ymax, 1000)
+            axl.plot(kde(yy), yy)
+            axl.fill_between(kde(yy), yy, alpha=0.3)
 
         return fig
 
@@ -643,5 +638,11 @@ def load_args(arg_path):
 
     if "num_data" not in model_args:
         model_args["num_data"] = None
+
+    if "last_layer" not in model_args:
+        model_args["last_layer"] = None
+
+    if "notes" not in model_args:
+        model_args["notes"] = ''
 
     return model_args

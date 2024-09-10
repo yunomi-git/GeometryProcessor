@@ -280,7 +280,10 @@ class MeshFolder:
 
     def load_mesh_with_augmentations(self, augmentations: List[Augmentation] | List[str]) -> List[MeshRawLabels]:
         if augmentations == "none" or augmentations is None:
-            mesh_labels = [self.load_default_mesh()]
+            mesh_labels = []
+            label = self.load_default_mesh()
+            if label is not None:
+                mesh_labels.append(label)
         elif augmentations == "all":
             mesh_labels = self.load_all_augmentations()
         else:

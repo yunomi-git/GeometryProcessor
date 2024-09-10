@@ -22,19 +22,25 @@ def mesh_is_valid_diffusion(verts, faces):
     faces_np = toNP(faces)
     return not (faces_np > len(verts_np)).any()
 
+def translate_pointcloud(pointcloud, device):
+    # pointcloud is points x dim
+    xyz_add = torch.zeros(pointcloud.size()[-1])
+    xyz_add[:3] = torch.from_numpy(np.random.uniform(low=-0.1, high=0.1, size=[3]))
+
+    return pointcloud + xyz_add.to(device)
+
 class DiffusionNetDataset(Dataset):
-    def __init__(self, data_root_dir, k_eig, outputs_at, partition, augmentations: str | List[Augmentation] = "none",
-                 op_cache_dir=None, data_fraction=1.0, num_data=None, label_names=None,
-                 extra_vertex_label_names=None, extra_global_label_names=None,
+    def __init__(self, data_root_dir, k_eig, args, partition, augmentations: str | List[Augmentation] = "none",
+                 op_cache_dir=None, data_fraction=1.0, num_data=None,
                  augment_random_rotate=True, cache_operators=True, use_imbalanced_weights=False,
-                 remove_outlier_ratio=0.0, aggregator: VertexAggregator=None, categorical_thresholds=None):
+                 remove_outlier_ratio=0.0, aggregator: VertexAggregator=None):
         self.root_dir = data_root_dir
         self.k_eig = k_eig
         self.k_eig_list = []
         self.op_cache_dir = op_cache_dir
         if op_cache_dir is None:
             self.op_cache_dir = data_root_dir + "../op_cache/"
-        self.outputs_at = outputs_at
+        self.outputs_at = args["outputs_at"]
         self.partition = partition
         self.augmentations = augmentations
         self.augment_random_rotate = augment_random_rotate
@@ -46,7 +52,9 @@ class DiffusionNetDataset(Dataset):
         self.all_faces = []
         self.all_vertices = []
         self.all_labels = []
-        label_names = label_names
+        label_names = args["label_names"]
+
+        # self.wiggle_position = wiggle_position
 
         # Open the base directory and get the contents
         num_files_to_use = num_data
@@ -63,6 +71,9 @@ class DiffusionNetDataset(Dataset):
         # Now parse through all the files
         print("Loading Meshes")
         outputs_at_to_load_from = self.outputs_at
+
+
+
         if aggregator is not None:
             outputs_at_to_load_from = "vertices"
         for mesh_folder in tqdm(mesh_folders):
@@ -70,8 +81,8 @@ class DiffusionNetDataset(Dataset):
 
             for mesh_label in mesh_labels:
                 mesh_data = mesh_label.convert_to_data(outputs_at_to_load_from, label_names,
-                                                       extra_vertex_label_names=extra_vertex_label_names,
-                                                       extra_global_label_names=extra_global_label_names)
+                                                       extra_vertex_label_names=args["input_append_vertex_label_names"],
+                                                       extra_global_label_names=args["input_append_global_label_names"])
 
                 verts = mesh_data.vertices
                 aug_verts = mesh_data.augmented_vertices
@@ -116,7 +127,7 @@ class DiffusionNetDataset(Dataset):
             print("Removing outliers")
             timer = util.Stopwatch()
             timer.start()
-            if outputs_at == "global":
+            if self.outputs_at == "global":
                 keep_indices = non_outlier_indices(self.all_labels, num_bins=15,
                                                    threshold_ratio_to_remove=remove_outlier_ratio)
             else:  # vertices
@@ -131,12 +142,14 @@ class DiffusionNetDataset(Dataset):
             print("Removed", original_length - new_length, "outliers.")
 
         ## Classification
-        self.categorical_thresholds = categorical_thresholds
+        self.categorical_thresholds = args["use_category_thresholds"]
         self.do_classification = False
         if self.categorical_thresholds is not None:
-            cat_map = CategoricalMap(categorical_thresholds)
+            cat_map = CategoricalMap(self.categorical_thresholds)
             self.all_labels = cat_map.to_category(self.all_labels)
             self.do_classification = True
+
+
 
         ## Imbalanced Weighting
         self.imbalanced_weighting = None
@@ -166,9 +179,14 @@ class DiffusionNetDataset(Dataset):
         faces = self.all_faces[idx]
         label = self.all_labels[idx]
 
+        # if self.partition == "train" and self.wiggle_position:
+        #     verts = translate_pointcloud(verts)
+
         verts = torch.tensor(verts).float()
         faces = torch.tensor(faces)
         label = torch.tensor(label).float()
+
+
 
         # Randomly rotate positions
         # if self.augment_random_rotate and self.is_training:
@@ -177,8 +195,9 @@ class DiffusionNetDataset(Dataset):
         return verts, faces, label
 
 
+
 class DiffusionNetWrapper(nn.Module):
-    def __init__(self, model_args, op_cache_dir, device):
+    def __init__(self, model_args, op_cache_dir, device, augment_perturb_position=False):
         super(DiffusionNetWrapper, self).__init__()
 
         input_feature_type = model_args["input_feature_type"]
@@ -210,6 +229,8 @@ class DiffusionNetWrapper(nn.Module):
         self.op_cache_dir = op_cache_dir
         C_in = {'xyz': 3, 'hks': 16}[self.input_feature_type]
 
+        self.augment_perturb_position = augment_perturb_position
+
         self.wrapped_model = DiffusionNet(C_in=C_in, C_out=num_outputs, C_width=C_width, N_block=N_block,
                                           outputs_at=output_at_to_pass,
                                           mlp_hidden_dims=mlp_hidden_dims, dropout=dropout,
@@ -223,10 +244,13 @@ class DiffusionNetWrapper(nn.Module):
         # Calculate properties
         verts = verts[0]
         faces = faces[0]
-        # raw_verts = verts[:, :3]
+
         frames, mass, L, evals, evecs, gradX, gradY = diffusion_net.geometry.get_operators(verts[:, :3], faces,
                                                                                        k_eig=self.k_eig,
                                                                                        op_cache_dir=self.op_cache_dir)
+        if self.augment_perturb_position:
+            verts = translate_pointcloud(verts, self.device)
+
         verts = verts.to(self.device)
         faces = faces.to(self.device)
         # frames = frames.to(device)

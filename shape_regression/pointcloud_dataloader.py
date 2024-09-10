@@ -42,18 +42,16 @@ def translate_pointcloud(pointcloud):
     # pointcloud is points x dim
     xyz_add = np.zeros(pointcloud.shape[-1])
     xyz_add[:3] = np.random.uniform(low=-0.1, high=0.1, size=[3])
-    translated_pointcloud = pointcloud + xyz_add
-    # translated_pointcloud = np.add(pointcloud, xyz_add).astype('float32')
 
-    return translated_pointcloud
+    return pointcloud + xyz_add
 
 
 
 class PointCloudDataset(Dataset):
-    def __init__(self, data_root_dir, num_points, label_names, partition='train', outputs_at="global",
-                 data_fraction=1.0, num_data=None, append_label_names=None, augmentations="all",
-                 use_imbalanced_weights=False, remove_outlier_ratio=0.05, categorical_thresholds=None, wiggle_position=False):
-        self.outputs_at = outputs_at
+    def __init__(self, data_root_dir, num_points, args, partition='train',
+                 data_fraction=1.0, num_data=None, augmentations="all",
+                 use_imbalanced_weights=False, remove_outlier_ratio=0.05, wiggle_position=False):
+        self.outputs_at = args["outputs_at"]
         timer = util.Stopwatch()
         timer.start()
 
@@ -71,15 +69,15 @@ class PointCloudDataset(Dataset):
             num_clouds=num_clouds,
             num_points=2 * num_points,
             augmentations=augmentations,
-            outputs_at=outputs_at,
-            desired_label_names=label_names,
-            extra_vertex_label_names=append_label_names,
+            outputs_at=self.outputs_at,
+            desired_label_names=args["label_names"],
+            extra_vertex_label_names=args["input_append_label_names"],
             extra_global_label_names=None)
 
         print("Num data loaded: " + str(len(self.point_clouds)))
 
         if remove_outlier_ratio > 0.0:
-            if outputs_at == "global":
+            if self.outputs_at == "global":
                 keep_indices = non_outlier_indices(self.label, num_bins=15,
                                                    threshold_ratio_to_remove=remove_outlier_ratio)
             else: # vertices
@@ -91,10 +89,10 @@ class PointCloudDataset(Dataset):
             new_length = len(self.label)
             print("Removed", original_length - new_length, "outliers.")
 
-        self.categorical_thresholds = categorical_thresholds
+        self.categorical_thresholds = args["use_category_thresholds"]
         self.do_classification = False
         if self.categorical_thresholds is not None:
-            cat_map = CategoricalMap(categorical_thresholds)
+            cat_map = CategoricalMap(self.categorical_thresholds)
             self.label = cat_map.to_category(self.label)
             self.do_classification = True
 
@@ -126,7 +124,6 @@ class PointCloudDataset(Dataset):
             if self.wiggle_position:
                 pointcloud = translate_pointcloud(pointcloud)
             p = np.random.permutation(len(pointcloud))[:self.num_points]
-            # pointcloud = translate_pointcloud(pointcloud)
         else:
             p = np.arange(self.num_points)
 
