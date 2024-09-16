@@ -37,34 +37,6 @@ def calculate_normals(mesh: trimesh.Trimesh):
 
     return normals
 
-# def calculate_normals_differentiable_diffusionnet(meshes: Meshes):
-#     coords = face_coords(verts, faces)
-#     vec_A = coords[:, 1, :] - coords[:, 0, :]
-#     vec_B = coords[:, 2, :] - coords[:, 0, :]
-#
-#     raw_normal = cross(vec_A, vec_B)
-#
-#     face_normals = normalize(raw_normal)
-#
-#     # if any are NaN, wiggle slightly and recompute
-#     bad_normals_mask = np.isnan(normals).any(axis=1, keepdims=True)
-#     if bad_normals_mask.any():
-#         bbox = np.amax(verts_np, axis=0) - np.amin(verts_np, axis=0)
-#         scale = np.linalg.norm(bbox) * 1e-4
-#         wiggle = (np.random.RandomState(seed=777).rand(*verts.shape)-0.5) * scale
-#         wiggle_verts = verts_np + bad_normals_mask * wiggle
-#         normals = mesh_vertex_normals(wiggle_verts, toNP(faces))
-#
-#     # if still NaN assign random normals (probably means unreferenced verts in mesh)
-#     bad_normals_mask = np.isnan(normals).any(axis=1)
-#     if bad_normals_mask.any():
-#         normals[bad_normals_mask,:] = (np.random.RandomState(seed=777).rand(*verts.shape)-0.5)[bad_normals_mask,:]
-#         normals = normals / np.linalg.norm(normals, axis=-1)[:,np.newaxis]
-#
-#     if torch.any(torch.isnan(normals)): raise ValueError("NaN normals :(")
-#
-#     return normals
-
 
 def calculate_normals_differentiable(meshes: Meshes):
     if meshes.isempty():
@@ -79,12 +51,6 @@ def calculate_normals_differentiable(meshes: Meshes):
     v1 = verts_packed[faces_packed[:, 1]]
     v2 = verts_packed[faces_packed[:, 2]]
 
-    # print("v0", v0)
-    # print("v1", v1)
-    # print("v2", v2)
-    # print("v1-v0", v1-v0)
-    # print("v0-v2", v0-v2)
-
     if (torch.isnan(verts_packed).any()):
         print("nan verts packed")
     if (torch.isnan(v0).any()):
@@ -93,16 +59,36 @@ def calculate_normals_differentiable(meshes: Meshes):
         print("nan v1 packed")
     if (torch.isnan(v2).any()):
         print("nan v2 packed")
+    if (torch.isnan(v1-v0).any()):
+        print("nan v1-v0 packed")
+    if (torch.isnan(v0-v2).any()):
+        print("nan v0-v2 packed")
 
-    n0 = torch.linalg.cross(v1-v0, v0-v2, dim=1)
-    # print("n0", n0)
+    # n0 = torch.linalg.cross(v1-v0, v0-v2, dim=1)
+    # e1 = f.normalize((v1 - v0), p=2, dim=1)
+    # e2 = f.normalize((v0 - v2), p=2, dim=1)
+    # n0 = e1.cross(e2, dim=1)
+    n0 = (v1 - v0).cross(v0-v2, dim=1)
+
     if (torch.isnan(n0).any()):
         print("normals nan")
     if (torch.eq(torch.norm(n0), 0).any()):
         print(torch.where(torch.eq(torch.norm(n0), 0)))
-    normals = -f.normalize(n0, p=2, dim=1)
+    if (torch.abs(n0) > 1.001).any():
+        print("normals > 1")
+
+    # normals = -n0
+    norms = torch.linalg.vector_norm(n0, dim=1)
+    normals = -n0
+    normals[:, 0] /= norms
+    normals[:, 1] /= norms
+    normals[:, 2] /= norms
+    # normals = -f.normalize(n0, p=2, dim=1)
+
     if (torch.isnan(normals).any()):
         print("normals nan")
+    if (torch.abs(normals) > 1).any():
+        print("normals > 1")
 
     areas = torch.linalg.vector_norm(n0, dim=1)
     return normals, areas
@@ -133,6 +119,39 @@ def normals_to_cost_differentiable(normals):
     loss = torch.mean(loss)
     return loss
 
+class OverhangLoss:
+    def __init__(self, warn_angle=-torch.pi / 4, fail_angle=-torch.pi / 2):
+        # This one punishes high angles
+        self.loss_func = get_threshold_penalty(x_warn=warn_angle, x_fail=fail_angle, crossover=0.05)
+        # This one ignores base
+        layer_height = 0.1
+        self.floor_height_loss_func = get_threshold_penalty(x_warn=0, x_fail=layer_height, crossover=0.05)
+
+    def get_loss(self, meshes: Meshes):
+        # print("verts", meshes.verts_packed())
+        normals, _ = calculate_normals_differentiable(meshes)
+        normals_z = normals[:, 2]
+        normals_z[normals_z > 1] = 1
+        normals_z[normals_z < -1] = -1
+        angles = torch.arcsin(normals_z)  # arcsin calculates overhang angles as < 0
+
+        verts_packed = meshes.verts_packed()  # (sum(V_n), 3)
+        faces_packed = meshes.faces_packed()  # (sum(F_n), 3)
+
+        v0 = verts_packed[faces_packed[:, 0]]
+        v1 = verts_packed[faces_packed[:, 1]]
+        v2 = verts_packed[faces_packed[:, 2]]
+
+        overhang_loss = self.loss_func(angles)
+
+        # Create another penalty based on floor height
+        centroids = (v0 + v1 + v2) / 3.0
+        floor_loss = self.floor_height_loss_func(centroids[:, 2])
+
+        loss = floor_loss * overhang_loss
+        loss = torch.mean(loss)
+        return loss
+
 def loss_mesh_overhangs(meshes: Meshes):
     # print("verts", meshes.verts_packed())
     normals, _ = calculate_normals_differentiable(meshes)
@@ -146,7 +165,6 @@ def loss_mesh_overhangs(meshes: Meshes):
 
     verts_packed = meshes.verts_packed()  # (sum(V_n), 3)
     faces_packed = meshes.faces_packed()  # (sum(F_n), 3)
-
 
     v0 = verts_packed[faces_packed[:, 0]]
     v1 = verts_packed[faces_packed[:, 1]]
@@ -175,6 +193,27 @@ def loss_mesh_overhangs(meshes: Meshes):
 
     loss = torch.mean(loss)
     return loss
+
+class StairstepLoss:
+    def __init__(self, warn_angle=torch.pi / 4, fail_angle=torch.pi / 2 * 0.90):
+        # This one punishes high angles
+        self.loss_func = get_threshold_penalty(x_warn=warn_angle, x_fail=fail_angle, crossover=0.05)
+        # This one ignores flats
+        self.loss_func_2 = get_threshold_penalty(x_warn=torch.pi / 2 * 0.95, x_fail=torch.pi / 2 * 0.90, crossover=0.01)
+
+    def get_loss(self, meshes: Meshes):
+        normals, _ = calculate_normals_differentiable(meshes)
+        normals_z = normals[:, 2]
+        normals_z[normals_z > 1] = 1
+        normals_z[normals_z < -1] = -1
+        angles = torch.arcsin(normals_z)  # arcsin calculates overhang angles as < 0
+
+        loss = self.loss_func(angles) * self.loss_func_2(angles)
+        # if (torch.isnan(loss).any()):
+        #     print("loss nan")
+        loss = torch.mean(loss)
+        return loss
+
 
 def loss_mesh_stairsteps(meshes: Meshes):
     normals, _ = calculate_normals_differentiable(meshes)

@@ -1,6 +1,6 @@
 import torch
 
-from Generation.Thresholds import get_threshold_penalty
+from printability_heuristics.Thresholds import get_threshold_penalty
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -20,10 +20,19 @@ if __name__=="__main__":
     # range = np.linspace(-np.pi/2, np.pi/2, num=500)
 
 
-    min_height = 0
-    layer_height = 0.2
-    thresh_1 = get_threshold_penalty(x_warn=min_height, x_fail=min_height + layer_height, crossover=0.01)
-    range = np.linspace(0, 1, num=500)
+    # min_height = 0
+    # layer_height = 0.2
+    # thresh_1 = get_threshold_penalty(x_warn=min_height, x_fail=min_height + layer_height, crossover=0.01)
+    # range = np.linspace(0, 1, num=500)
+
+    # Single Angle
+    thresh_1 = get_threshold_penalty(x_warn=-torch.pi / 4, x_fail=-torch.pi / 2, crossover=0.05)
+    range = np.linspace(-np.pi/2, np.pi/2, num=500)
+    # Thicknesses
+    # warn_thickness = 0.1
+    # fail_thickness = 0.05
+    # thresh_1 = get_threshold_penalty(x_warn=warn_thickness, x_fail=fail_thickness, crossover=0.05)
+    # range = np.linspace(0, 1, num=500)
 
     plt.plot(range, get_function(thresh_1, range))
     # plt.plot(range, get_function(thresh_2, range))

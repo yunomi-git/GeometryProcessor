@@ -30,6 +30,38 @@ def show_mesh(vertices, faces):
 
     pl.show()
 
+def show_meshes_in_grid(meshes, r=4, c=4):
+    num_data = len(meshes)
+    num_visualized = c * r
+    num_iterations = int(np.ceil(num_data / num_visualized))
+
+    for i in range(num_iterations):
+        pl = pv.Plotter(shape=(r, c))
+        for ri in range(r):
+            for ci in range(c):
+                idx = i * r * c + ri * c + ci
+                if idx >= num_data:
+                    break
+                mesh_vertices = meshes[idx].vertices
+                mesh_faces = meshes[idx].faces
+                # mesh_labels = labels[idx]
+                mesh = convert_to_pv_mesh(mesh_vertices, mesh_faces)
+                pl.subplot(ri, ci)
+                actor = pl.add_mesh(
+                    mesh,
+                    # scalars=mesh_labels,
+                    # render_points_as_spheres=True,
+                    # point_size=5,
+                    # rgb=True,
+                    # show_scalar_bar=True,
+                    # text="Curvature"
+                )
+                # actor.mapper.lookup_table.cmap = 'jet'
+                pl.show_bounds(grid=True, all_edges=False,  font_size=10)
+
+        pl.link_views()
+        pl.show()
+
 def show_mesh_z_mag(trimesh_mesh):
     mesh_aux = trimesh_util.MeshAuxilliaryInfo(trimesh_mesh)
 
@@ -56,6 +88,7 @@ def show_mesh_z_mag(trimesh_mesh):
         # clim=[min_value, max_value]
     )
     # pl.add_text('Actual', color='black')
+    pl.show_bounds()
     actor1.mapper.lookup_table.cmap = 'jet'
 
     pl.show()
